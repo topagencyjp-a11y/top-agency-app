@@ -13,6 +13,7 @@ export default function Dashboard() {
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [form, setForm] = useState({
     visits: 0, netMeet: 0, mainMeet: 0, negotiation: 0, acquired: 0,
     startTime: '', endTime: '',
@@ -44,16 +45,47 @@ export default function Dashboard() {
     loadReports();
   }, []);
 
+  // 日付変更時に既存データを読み込む
+  useEffect(() => {
+    if (!user) return;
+    const existing = reports.find(r => r.date === selectedDate && r.name === user.name);
+    if (existing) {
+      setForm({
+        visits: Number(existing.visits) || 0,
+        netMeet: Number(existing.netMeet) || 0,
+        mainMeet: Number(existing.mainMeet) || 0,
+        negotiation: Number(existing.negotiation) || 0,
+        acquired: Number(existing.acquired) || 0,
+        startTime: existing.startTime || '',
+        endTime: existing.endTime || '',
+        acquiredCase: existing.acquiredCase || '',
+        lostCase: existing.lostCase || '',
+        goodPoints: existing.goodPoints || '',
+        issues: existing.issues || '',
+        improvements: existing.improvements || '',
+        learnings: existing.learnings || '',
+        planDays: Number(existing.planDays) || 20,
+      });
+    } else {
+      setForm({
+        visits: 0, netMeet: 0, mainMeet: 0, negotiation: 0, acquired: 0,
+        startTime: '', endTime: '',
+        acquiredCase: '', lostCase: '',
+        goodPoints: '', issues: '', improvements: '', learnings: '',
+        planDays: 20,
+      });
+    }
+  }, [selectedDate, user, reports]);
+
   const handleSave = async () => {
     setSaving(true);
-    const today = new Date().toISOString().split('T')[0];
-    const report = { ...form, date: today, name: user?.name };
+    const report = { ...form, date: selectedDate, name: user?.name };
     try {
       await saveReport(report);
       await loadReports();
       alert('保存しました！');
     } catch {
-      const updated = [...reports.filter(r => !(r.date === today && r.name === user?.name)), report];
+      const updated = [...reports.filter(r => !(r.date === selectedDate && r.name === user?.name)), report];
       setReports(updated);
       localStorage.setItem('reports', JSON.stringify(updated));
       alert('保存しました！（オフライン）');
@@ -95,6 +127,20 @@ export default function Dashboard() {
   const inputStyle = "w-full border border-gray-300 rounded px-3 py-2 text-sm mt-1 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500";
   const textareaStyle = "w-full border border-gray-300 rounded px-3 py-2 text-sm mt-1 h-20 resize-none text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500";
 
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return `${d.getMonth()+1}/${d.getDate()}（${['日','月','火','水','木','金','土'][d.getDay()]}）`;
+  };
+
+  const changeDate = (delta: number) => {
+    const d = new Date(selectedDate);
+    d.setDate(d.getDate() + delta);
+    setSelectedDate(d.toISOString().split('T')[0]);
+  };
+
+  const isToday = selectedDate === new Date().toISOString().split('T')[0];
+  const hasData = reports.some(r => r.date === selectedDate && r.name === user?.name);
+
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="bg-gray-900 text-white px-4 py-3 flex items-center justify-between">
@@ -123,8 +169,27 @@ export default function Dashboard() {
 
         {tab === 'input' && (
           <div className="space-y-4">
+            {/* 日付選択 */}
             <div className="bg-white rounded-xl p-4 shadow">
-              <div className="font-bold text-gray-800 mb-3">📅 {new Date().toLocaleDateString('ja-JP')} — {user?.name}</div>
+              <div className="flex items-center justify-between">
+                <button onClick={() => changeDate(-1)} className="w-9 h-9 bg-gray-100 rounded-full text-gray-600 font-bold hover:bg-gray-200">‹</button>
+                <div className="text-center">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-gray-900 text-lg">{formatDate(selectedDate)}</span>
+                    {isToday && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">今日</span>}
+                    {hasData && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">入力済み</span>}
+                  </div>
+                  <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
+                    className="text-xs text-gray-400 mt-1 border-0 bg-transparent cursor-pointer" />
+                </div>
+                <button onClick={() => changeDate(1)} disabled={isToday}
+                  className="w-9 h-9 bg-gray-100 rounded-full text-gray-600 font-bold hover:bg-gray-200 disabled:opacity-30">›</button>
+              </div>
+            </div>
+
+            {/* 稼働時間 */}
+            <div className="bg-white rounded-xl p-4 shadow">
+              <div className="font-bold text-gray-800 mb-3">⏰ 稼働時間</div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm font-medium text-gray-700">開始時刻</label>
@@ -137,11 +202,12 @@ export default function Dashboard() {
               </div>
             </div>
 
+            {/* 行動量 */}
             <div className="bg-white rounded-xl p-4 shadow">
               <div className="font-bold text-gray-800 mb-3">📊 行動量</div>
               {[
                 { key: 'visits', label: '訪問数', color: 'bg-blue-500' },
-                { key: 'netMeet', label: 'ネット対面', color: 'bg-purple-500' },
+                { key: 'netMeet', label: '対面数', color: 'bg-purple-500' },
                 { key: 'mainMeet', label: '主権対面', color: 'bg-indigo-500' },
                 { key: 'negotiation', label: '商談', color: 'bg-orange-500' },
                 { key: 'acquired', label: '獲得数', color: 'bg-green-500' },
@@ -159,6 +225,7 @@ export default function Dashboard() {
               ))}
             </div>
 
+            {/* 日報 */}
             <div className="bg-white rounded-xl p-4 shadow">
               <div className="font-bold text-gray-800 mb-3">📝 日報</div>
               {[
@@ -177,6 +244,7 @@ export default function Dashboard() {
               ))}
             </div>
 
+            {/* 稼働計画 */}
             <div className="bg-white rounded-xl p-4 shadow">
               <div className="font-bold text-gray-800 mb-3">📅 稼働計画</div>
               <div>
@@ -187,7 +255,7 @@ export default function Dashboard() {
 
             <button onClick={handleSave} disabled={saving}
               className="w-full bg-blue-600 text-white font-bold py-4 rounded-xl shadow text-lg hover:bg-blue-700 disabled:opacity-50">
-              {saving ? '保存中...' : '💾 保存する'}
+              {saving ? '保存中...' : `💾 ${formatDate(selectedDate)}の報告を保存`}
             </button>
           </div>
         )}
@@ -266,7 +334,7 @@ export default function Dashboard() {
               <div className="font-bold text-gray-800 mb-3">📈 行動量合計</div>
               {[
                 { key: 'visits', label: '訪問数' },
-                { key: 'netMeet', label: 'ネット対面' },
+                { key: 'netMeet', label: '対面数' },
                 { key: 'mainMeet', label: '主権対面' },
                 { key: 'negotiation', label: '商談' },
                 { key: 'acquired', label: '獲得数' },
