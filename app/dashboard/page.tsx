@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { MEMBERS, TEAM_TARGET, UNIT_PRICE, OPEN_RATE } from '@/lib/members';
+import { MEMBERS, TEAM_TARGET } from '@/lib/members';
 import { saveReport, getReports } from '@/lib/api';
 
 type Tab = 'input' | 'status' | 'analysis' | 'overall' | 'contracts';
