@@ -13,12 +13,14 @@ export default function Dashboard() {
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [form, setForm] = useState({
     visits: 0, netMeet: 0, mainMeet: 0, negotiation: 0, acquired: 0,
     startTime: '', endTime: '',
     acquiredCase: '', lostCase: '',
     goodPoints: '', issues: '', improvements: '', learnings: '',
+    gratitude: '',
     planDays: 20,
   });
 
@@ -45,7 +47,6 @@ export default function Dashboard() {
     loadReports();
   }, []);
 
-  // 日付変更時に既存データを読み込む
   useEffect(() => {
     if (!user) return;
     const existing = reports.find(r => r.date === selectedDate && r.name === user.name);
@@ -64,6 +65,7 @@ export default function Dashboard() {
         issues: existing.issues || '',
         improvements: existing.improvements || '',
         learnings: existing.learnings || '',
+        gratitude: existing.gratitude || '',
         planDays: Number(existing.planDays) || 20,
       });
     } else {
@@ -72,6 +74,7 @@ export default function Dashboard() {
         startTime: '', endTime: '',
         acquiredCase: '', lostCase: '',
         goodPoints: '', issues: '', improvements: '', learnings: '',
+        gratitude: '',
         planDays: 20,
       });
     }
@@ -92,6 +95,33 @@ export default function Dashboard() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const copyReport = () => {
+    const d = new Date(selectedDate);
+    const dateStr = `${d.getMonth()+1}/${d.getDate()}（${['日','月','火','水','木','金','土'][d.getDay()]}）`;
+    const lines = [
+      `【${user?.name} 日報 ${dateStr}】`,
+      ``,
+      `■ 稼働時間`,
+      `${form.startTime || '--:--'} 〜 ${form.endTime || '--:--'}`,
+      ``,
+      `■ 行動量`,
+      `訪問数：${form.visits}　対面数：${form.netMeet}　主権対面：${form.mainMeet}　商談：${form.negotiation}　獲得数：${form.acquired}`,
+      ``,
+    ];
+    if (form.acquiredCase) lines.push(`■ 獲得案件\n${form.acquiredCase}\n`);
+    if (form.lostCase) lines.push(`■ 失注案件\n${form.lostCase}\n`);
+    if (form.goodPoints) lines.push(`■ よかった点\n${form.goodPoints}\n`);
+    if (form.issues) lines.push(`■ 課題・失敗\n${form.issues}\n`);
+    if (form.improvements) lines.push(`■ 明日の改善ポイント\n${form.improvements}\n`);
+    if (form.learnings) lines.push(`■ 学び・気づき\n${form.learnings}\n`);
+    if (form.gratitude) lines.push(`■ 感謝・シェアしたいこと\n${form.gratitude}\n`);
+
+    navigator.clipboard.writeText(lines.join('\n')).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
   };
 
   const thisMonth = new Date().toISOString().slice(0, 7);
@@ -174,7 +204,7 @@ export default function Dashboard() {
               <div className="flex items-center justify-between">
                 <button onClick={() => changeDate(-1)} className="w-9 h-9 bg-gray-100 rounded-full text-gray-600 font-bold hover:bg-gray-200">‹</button>
                 <div className="text-center">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 justify-center">
                     <span className="font-bold text-gray-900 text-lg">{formatDate(selectedDate)}</span>
                     {isToday && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">今日</span>}
                     {hasData && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">入力済み</span>}
@@ -235,6 +265,7 @@ export default function Dashboard() {
                 { key: 'issues', label: '❌ 課題・失敗', placeholder: '課題や失敗を正直に振り返る' },
                 { key: 'improvements', label: '📌 明日の改善ポイント', placeholder: '明日に活かす具体的な改善点' },
                 { key: 'learnings', label: '💡 学び・気づき', placeholder: '今日の学び・気づき・新発見' },
+                { key: 'gratitude', label: '🙏 感謝・シェアしたいこと（任意）', placeholder: 'チームへの感謝や共有したいこと' },
               ].map(item => (
                 <div key={item.key} className="mb-4">
                   <label className="text-sm font-bold text-gray-700">{item.label}</label>
@@ -253,10 +284,17 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <button onClick={handleSave} disabled={saving}
-              className="w-full bg-blue-600 text-white font-bold py-4 rounded-xl shadow text-lg hover:bg-blue-700 disabled:opacity-50">
-              {saving ? '保存中...' : `💾 ${formatDate(selectedDate)}の報告を保存`}
-            </button>
+            {/* ボタン */}
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={copyReport}
+                className="bg-white border-2 border-blue-600 text-blue-600 font-bold py-4 rounded-xl text-sm hover:bg-blue-50">
+                {copied ? '✅ コピーしました！' : '📋 日報をコピー'}
+              </button>
+              <button onClick={handleSave} disabled={saving}
+                className="bg-blue-600 text-white font-bold py-4 rounded-xl text-sm hover:bg-blue-700 disabled:opacity-50">
+                {saving ? '保存中...' : '💾 保存する'}
+              </button>
+            </div>
           </div>
         )}
 
@@ -289,7 +327,6 @@ export default function Dashboard() {
                 ))}
               </div>
             </div>
-
             <div className="bg-white rounded-xl p-4 shadow">
               <div className="font-bold text-gray-800 mb-2">⚡ 生産性</div>
               <div className="text-3xl font-bold text-blue-600">{productivity} <span className="text-base text-gray-500">件/日</span></div>
@@ -298,7 +335,6 @@ export default function Dashboard() {
                 <div className="text-xs text-blue-600 mt-1">{productivity} × {workedDays + remainDays}日 = {forecast}件</div>
               </div>
             </div>
-
             <div className="bg-white rounded-xl p-4 shadow">
               <div className="font-bold text-gray-800 mb-3">達成率</div>
               <div className="flex items-center gap-3">
@@ -329,7 +365,6 @@ export default function Dashboard() {
                 ))}
               </div>
             </div>
-
             <div className="bg-white rounded-xl p-4 shadow">
               <div className="font-bold text-gray-800 mb-3">📈 行動量合計</div>
               {[
@@ -369,7 +404,6 @@ export default function Dashboard() {
                 <div className="text-xs text-gray-400">開通率{Math.round(OPEN_RATE*100)}%</div>
               </div>
             </div>
-
             <div className="bg-white rounded-xl p-4 shadow">
               <div className="font-bold text-gray-800 mb-3">🏆 獲得件数ランキング</div>
               {teamAcquired.map((m, i) => (
@@ -403,7 +437,6 @@ export default function Dashboard() {
                   </div>
                 ))}
             </div>
-
             <div className="bg-white rounded-xl p-4 shadow">
               <div className="font-bold text-gray-800 mb-3">📋 全獲得案件</div>
               {reports
