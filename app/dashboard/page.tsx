@@ -354,8 +354,9 @@ export default function Dashboard() {
 
         {tab === 'analysis' && (
           <div className="space-y-4">
+            {/* 個人サマリー */}
             <div className="bg-white rounded-xl p-4 shadow">
-              <div className="font-bold text-gray-800 mb-3">📊 月間サマリー — {user?.name}</div>
+              <div className="font-bold text-gray-800 mb-3">📊 個人サマリー — {user?.name}</div>
               <div className="grid grid-cols-3 gap-3 text-center">
                 {[
                   { label: '生産性', value: productivity },
@@ -369,8 +370,9 @@ export default function Dashboard() {
                 ))}
               </div>
             </div>
+            {/* 個人行動量 */}
             <div className="bg-white rounded-xl p-4 shadow">
-              <div className="font-bold text-gray-800 mb-3">📈 行動量合計</div>
+              <div className="font-bold text-gray-800 mb-3">📈 個人行動量合計</div>
               {actionItems.map(item => {
                 const total = myReports.reduce((s, r) => s + (Number(r[item.key]) || 0), 0);
                 const avg = workedDays > 0 ? (total / workedDays).toFixed(1) : '0.0';
@@ -385,22 +387,68 @@ export default function Dashboard() {
                 );
               })}
             </div>
+            {/* チーム行動量 */}
+            <div className="bg-white rounded-xl p-4 shadow">
+              <div className="font-bold text-gray-800 mb-3">👥 チーム行動量合計</div>
+              <div className="grid grid-cols-5 gap-2 text-center mb-4">
+                {[
+                  { label: '訪問', key: 'visits', color: 'bg-blue-50 text-blue-700' },
+                  { label: '対面', key: 'netMeet', color: 'bg-purple-50 text-purple-700' },
+                  { label: '主権', key: 'mainMeet', color: 'bg-indigo-50 text-indigo-700' },
+                  { label: '商談', key: 'negotiation', color: 'bg-orange-50 text-orange-700' },
+                  { label: '獲得', key: 'acquired', color: 'bg-green-50 text-green-700' },
+                ].map(item => {
+                  const total = teamAcquired.reduce((s, m) => s + reports.filter(r => r.name === m.name && r.date?.startsWith(thisMonth)).reduce((ss, r) => ss + (Number(r[item.key]) || 0), 0), 0);
+                  return (
+                    <div key={item.label} className={`${item.color} rounded-lg p-2`}>
+                      <div className="text-xs font-medium">{item.label}</div>
+                      <div className="font-bold text-lg">{total}</div>
+                    </div>
+                  );
+                })}
+              </div>
+              {/* メンバー別行動量 */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      {['氏名', '訪問', '対面', '主権', '商談', '獲得', '生産性'].map(h => (
+                        <th key={h} className="px-2 py-2 text-left text-gray-600 font-bold">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {teamAcquired.map((m, i) => {
+                      const mR = reports.filter(r => r.name === m.name && r.date?.startsWith(thisMonth));
+                      const v = mR.reduce((s, r) => s + (Number(r.visits) || 0), 0);
+                      const nm = mR.reduce((s, r) => s + (Number(r.netMeet) || 0), 0);
+                      const mm = mR.reduce((s, r) => s + (Number(r.mainMeet) || 0), 0);
+                      const ng = mR.reduce((s, r) => s + (Number(r.negotiation) || 0), 0);
+                      return (
+                        <tr key={m.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                          <td className="px-2 py-2 font-bold text-gray-900">{m.name}</td>
+                          <td className="px-2 py-2 text-blue-700">{v}</td>
+                          <td className="px-2 py-2 text-purple-700">{nm}</td>
+                          <td className="px-2 py-2 text-indigo-700">{mm}</td>
+                          <td className="px-2 py-2 text-orange-700">{ng}</td>
+                          <td className="px-2 py-2 font-bold text-green-700">{m.acquired}</td>
+                          <td className="px-2 py-2 text-gray-600">{m.productivity}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
 
         {tab === 'overall' && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-gray-900 text-white rounded-xl p-4">
-                <div className="text-xs text-gray-400 mb-1">今月獲得件数</div>
-                <div className="text-3xl font-bold text-blue-400">{totalAcquired}</div>
-                <div className="text-xs text-gray-400">目標 {TEAM_TARGET}件</div>
-              </div>
-              <div className="bg-white rounded-xl p-4 shadow">
-                <div className="text-xs text-gray-500 mb-1 font-medium">想定売上</div>
-                <div className="text-xl font-bold text-green-600">¥{estimatedSales.toLocaleString()}</div>
-                <div className="text-xs text-gray-400">開通率{Math.round(OPEN_RATE*100)}%</div>
-              </div>
+            <div className="bg-gray-900 text-white rounded-xl p-4">
+              <div className="text-xs text-gray-400 mb-1">今月獲得件数</div>
+              <div className="text-3xl font-bold text-blue-400">{totalAcquired}</div>
+              <div className="text-xs text-gray-400">目標 {TEAM_TARGET}件</div>
             </div>
             <div className="bg-white rounded-xl p-4 shadow">
               <div className="font-bold text-gray-800 mb-3">🏆 獲得件数ランキング</div>
