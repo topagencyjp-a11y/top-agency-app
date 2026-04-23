@@ -1,7 +1,8 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { MEMBERS, TEAM_TARGET, UNIT_PRICE, OPEN_RATE } from '@/lib/members';
+import { saveReport, getReports } from '@/lib/api';
 
 type Tab = 'input' | 'status' | 'analysis' | 'overall' | 'contracts';
 
@@ -10,13 +11,29 @@ export default function Dashboard() {
   const [user, setUser] = useState<any>(null);
   const [tab, setTab] = useState<Tab>('input');
   const [reports, setReports] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     visits: 0, netMeet: 0, mainMeet: 0, negotiation: 0, acquired: 0,
     startTime: '', endTime: '',
-    acquiredCase: '', lostCase: '', memo: '',
+    acquiredCase: '', lostCase: '',
     goodPoints: '', issues: '', improvements: '', learnings: '',
-    planDays: 20, workedDays: 0,
+    planDays: 20,
   });
+
+  const loadReports = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await getReports();
+      setReports(data);
+      localStorage.setItem('reports', JSON.stringify(data));
+    } catch {
+      const stored = localStorage.getItem('reports');
+      if (stored) setReports(JSON.parse(stored));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     const u = localStorage.getItem('user');
@@ -24,32 +41,42 @@ export default function Dashboard() {
     setUser(JSON.parse(u));
     const stored = localStorage.getItem('reports');
     if (stored) setReports(JSON.parse(stored));
+    loadReports();
   }, []);
 
-  const saveReport = () => {
+  const handleSave = async () => {
+    setSaving(true);
     const today = new Date().toISOString().split('T')[0];
-    const report = { ...form, date: today, name: user?.name, savedAt: new Date().toISOString() };
-    const updated = [...reports.filter(r => !(r.date === today && r.name === user?.name)), report];
-    setReports(updated);
-    localStorage.setItem('reports', JSON.stringify(updated));
-    alert('保存しました！');
+    const report = { ...form, date: today, name: user?.name };
+    try {
+      await saveReport(report);
+      await loadReports();
+      alert('保存しました！');
+    } catch {
+      const updated = [...reports.filter(r => !(r.date === today && r.name === user?.name)), report];
+      setReports(updated);
+      localStorage.setItem('reports', JSON.stringify(updated));
+      alert('保存しました！（オフライン）');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const thisMonth = new Date().toISOString().slice(0, 7);
   const myReports = reports.filter(r => r.name === user?.name && r.date?.startsWith(thisMonth));
-  const myAcquired = myReports.reduce((s, r) => s + (r.acquired || 0), 0);
+  const myAcquired = myReports.reduce((s, r) => s + (Number(r.acquired) || 0), 0);
   const myMember = MEMBERS.find(m => m.name === user?.name);
   const myTarget = myMember?.target || 0;
   const myRate = myTarget > 0 ? Math.round(myAcquired / myTarget * 100) : 0;
-  const workedDays = myReports.filter(r => r.visits > 0).length;
+  const workedDays = myReports.filter(r => Number(r.visits) > 0).length;
   const productivity = workedDays > 0 ? (myAcquired / workedDays).toFixed(2) : '0.00';
   const remainDays = (form.planDays || 20) - workedDays;
   const forecast = Math.round(Number(productivity) * (workedDays + remainDays));
 
   const teamAcquired = MEMBERS.map(m => {
     const mReports = reports.filter(r => r.name === m.name && r.date?.startsWith(thisMonth));
-    const acquired = mReports.reduce((s, r) => s + (r.acquired || 0), 0);
-    const worked = mReports.filter(r => r.visits > 0).length;
+    const acquired = mReports.reduce((s, r) => s + (Number(r.acquired) || 0), 0);
+    const worked = mReports.filter(r => Number(r.visits) > 0).length;
     const prod = worked > 0 ? acquired / worked : 0;
     return { ...m, acquired, worked, productivity: prod.toFixed(2) };
   }).sort((a, b) => b.acquired - a.acquired);
@@ -76,8 +103,11 @@ export default function Dashboard() {
           <span className="text-sm bg-gray-700 px-2 py-1 rounded">{thisMonth.replace('-', '/')}</span>
           {user && <span className="text-sm text-gray-300">{user.name}</span>}
         </div>
-        <button onClick={() => { localStorage.clear(); router.push('/login'); }}
-          className="text-gray-400 text-sm hover:text-white">ログアウト</button>
+        <div className="flex items-center gap-3">
+          {loading && <span className="text-xs text-gray-400">同期中...</span>}
+          <button onClick={() => { localStorage.clear(); router.push('/login'); }}
+            className="text-gray-400 text-sm hover:text-white">ログアウト</button>
+        </div>
       </div>
 
       <div className="bg-gray-900 flex overflow-x-auto">
@@ -98,13 +128,11 @@ export default function Dashboard() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm font-medium text-gray-700">開始時刻</label>
-                  <input type="time" value={form.startTime} onChange={e => setForm({...form, startTime: e.target.value})}
-                    className={inputStyle} />
+                  <input type="time" value={form.startTime} onChange={e => setForm({...form, startTime: e.target.value})} className={inputStyle} />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700">終了時刻</label>
-                  <input type="time" value={form.endTime} onChange={e => setForm({...form, endTime: e.target.value})}
-                    className={inputStyle} />
+                  <input type="time" value={form.endTime} onChange={e => setForm({...form, endTime: e.target.value})} className={inputStyle} />
                 </div>
               </div>
             </div>
@@ -134,7 +162,7 @@ export default function Dashboard() {
             <div className="bg-white rounded-xl p-4 shadow">
               <div className="font-bold text-gray-800 mb-3">📝 日報</div>
               {[
-                { key: 'acquiredCase', label: '🏆 獲得案件', placeholder: 'どういったお客さんか・角度感・フックを詳しく書いてください' },
+                { key: 'acquiredCase', label: '🏆 獲得案件', placeholder: 'どういったお客さんか・角度感・フックを詳しく' },
                 { key: 'lostCase', label: '😅 失注案件', placeholder: '失注案件の詳細（なければ「なし」）' },
                 { key: 'goodPoints', label: '✅ よかった点', placeholder: '今日のよかった点を具体的に' },
                 { key: 'issues', label: '❌ 課題・失敗', placeholder: '課題や失敗を正直に振り返る' },
@@ -143,34 +171,23 @@ export default function Dashboard() {
               ].map(item => (
                 <div key={item.key} className="mb-4">
                   <label className="text-sm font-bold text-gray-700">{item.label}</label>
-                  <textarea
-                    value={(form as any)[item.key]}
-                    onChange={e => setForm({...form, [item.key]: e.target.value})}
-                    placeholder={item.placeholder}
-                    className={textareaStyle}
-                  />
+                  <textarea value={(form as any)[item.key]} onChange={e => setForm({...form, [item.key]: e.target.value})}
+                    placeholder={item.placeholder} className={textareaStyle} />
                 </div>
               ))}
             </div>
 
             <div className="bg-white rounded-xl p-4 shadow">
               <div className="font-bold text-gray-800 mb-3">📅 稼働計画</div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-sm font-medium text-gray-700">計画稼働日数</label>
-                  <input type="number" value={form.planDays} onChange={e => setForm({...form, planDays: +e.target.value})}
-                    className={inputStyle} />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700">実稼働日数（自動）</label>
-                  <input type="number" value={workedDays} readOnly className={inputStyle + ' bg-gray-50'} />
-                </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700">計画稼働日数</label>
+                <input type="number" value={form.planDays} onChange={e => setForm({...form, planDays: +e.target.value})} className={inputStyle} />
               </div>
             </div>
 
-            <button onClick={saveReport}
-              className="w-full bg-blue-600 text-white font-bold py-4 rounded-xl shadow text-lg hover:bg-blue-700">
-              💾 保存する
+            <button onClick={handleSave} disabled={saving}
+              className="w-full bg-blue-600 text-white font-bold py-4 rounded-xl shadow text-lg hover:bg-blue-700 disabled:opacity-50">
+              {saving ? '保存中...' : '💾 保存する'}
             </button>
           </div>
         )}
@@ -183,7 +200,7 @@ export default function Dashboard() {
                   <div className="text-xl font-bold text-gray-900">{user?.name}</div>
                   <div className="text-gray-500 text-sm">{thisMonth.replace('-','/')}月</div>
                 </div>
-                {myRate < 100 && (
+                {myRate < 100 && forecast < myTarget && (
                   <div className="bg-red-500 text-white text-sm font-bold px-3 py-1 rounded-full">
                     未達予測 -{myTarget - forecast}件
                   </div>
@@ -193,9 +210,9 @@ export default function Dashboard() {
                 {[
                   { label: '月間目標', value: `${myTarget}件` },
                   { label: '実績（獲得件数）', value: `${myAcquired}件`, color: 'text-blue-600' },
-                  { label: '計画稼働日数', value: `${form.planDays}日` },
                   { label: '実稼働日数', value: `${workedDays}日` },
                   { label: '残稼働日数', value: `${remainDays}日`, color: remainDays <= 5 ? 'text-red-500' : 'text-gray-900' },
+                  { label: '着地予測', value: `${forecast}件`, color: 'text-orange-500' },
                 ].map(item => (
                   <div key={item.label} className="flex justify-between items-center py-2 border-b last:border-0">
                     <span className="text-gray-700 text-sm font-medium">{item.label}</span>
@@ -207,7 +224,6 @@ export default function Dashboard() {
 
             <div className="bg-white rounded-xl p-4 shadow">
               <div className="font-bold text-gray-800 mb-2">⚡ 生産性</div>
-              <div className="text-xs text-gray-500 mb-2">生産性 = 実績 ÷ 実稼働日数</div>
               <div className="text-3xl font-bold text-blue-600">{productivity} <span className="text-base text-gray-500">件/日</span></div>
               <div className="mt-3 p-3 bg-blue-50 rounded-lg">
                 <div className="text-sm text-blue-700 font-bold">着地予測: {forecast}件</div>
@@ -255,7 +271,7 @@ export default function Dashboard() {
                 { key: 'negotiation', label: '商談' },
                 { key: 'acquired', label: '獲得数' },
               ].map(item => {
-                const total = myReports.reduce((s, r) => s + (r[item.key] || 0), 0);
+                const total = myReports.reduce((s, r) => s + (Number(r[item.key]) || 0), 0);
                 const avg = workedDays > 0 ? (total / workedDays).toFixed(1) : '0.0';
                 return (
                   <div key={item.key} className="flex justify-between items-center py-2 border-b last:border-0">
@@ -308,9 +324,9 @@ export default function Dashboard() {
           <div className="space-y-4">
             <div className="bg-red-50 border border-red-200 rounded-xl p-4">
               <div className="font-bold text-red-700 mb-1">📞 工事日電話が必要</div>
-              <div className="text-xs text-red-500 mb-3">獲得日から3日以上経過・工事日未定のお客様</div>
+              <div className="text-xs text-red-500 mb-3">獲得日から3日以上経過のお客様</div>
               {reports
-                .filter(r => r.name === user?.name && r.acquired > 0)
+                .filter(r => r.name === user?.name && Number(r.acquired) > 0)
                 .filter(r => Math.floor((Date.now() - new Date(r.date).getTime()) / 86400000) >= 3)
                 .map((r, i) => (
                   <div key={i} className="bg-white rounded-lg p-3 mb-2 border border-red-100">
@@ -323,7 +339,7 @@ export default function Dashboard() {
             <div className="bg-white rounded-xl p-4 shadow">
               <div className="font-bold text-gray-800 mb-3">📋 全獲得案件</div>
               {reports
-                .filter(r => r.name === user?.name && r.acquired > 0)
+                .filter(r => r.name === user?.name && Number(r.acquired) > 0)
                 .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                 .map((r, i) => (
                   <div key={i} className="py-3 border-b last:border-0">
