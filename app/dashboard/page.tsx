@@ -143,7 +143,6 @@ export default function Dashboard() {
   }).sort((a, b) => b.acquired - a.acquired);
 
   const totalAcquired = teamAcquired.reduce((s, m) => s + m.acquired, 0);
-  const estimatedSales = Math.round(totalAcquired * UNIT_PRICE * OPEN_RATE);
 
   const tabs = [
     { id: 'input', label: '✏️ 入力' },
