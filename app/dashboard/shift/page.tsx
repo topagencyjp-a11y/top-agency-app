@@ -15,9 +15,10 @@ export default function ShiftPage() {
   const today = new Date();
   const year = today.getFullYear();
   const month = today.getMonth();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-  const weekDays = ['日', '月', '火', '水', '木', '金', '土'];
+  const todayStr = `${year}-${String(month+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const days = Array.from({length: daysInMonth}, (_,i) => i+1);
+  const weekDays = ['日','月','火','水','木','金','土'];
 
   useEffect(() => {
     const u = localStorage.getItem('user');
@@ -32,67 +33,101 @@ export default function ShiftPage() {
   const getDay = (day: number) => new Date(year, month, day).getDay();
 
   const toggleShift = (name: string, day: number) => {
-    const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const key = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
     const current = shifts[name]?.[key] || '';
-    const next: ShiftStatus = current === '' ? '稼働' : current === '稼働' ? '休日' : '';
-    const updated = {
-      ...shifts,
-      [name]: { ...shifts[name], [key]: next }
-    };
+    const next: ShiftStatus = current==='' ? '稼働' : current==='稼働' ? '休日' : '';
+    const updated = { ...shifts, [name]: { ...shifts[name], [key]: next } };
     setShifts(updated);
     localStorage.setItem('shifts', JSON.stringify(updated));
   };
 
   const getShift = (name: string, day: number): ShiftStatus => {
-    const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const key = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
     return shifts[name]?.[key] || '';
   };
 
-  const getWorkedCount = (name: string) =>
-    days.filter(d => getShift(name, d) === '稼働').length;
+  const getShiftByKey = (name: string, key: string): ShiftStatus => shifts[name]?.[key] || '';
+
+  const getWorkedCount = (name: string) => days.filter(d => getShift(name, d)==='稼働').length;
+
+  // 今日稼働中のメンバー
+  const todayWorking = MEMBERS.filter(m => getShiftByKey(m.name, todayStr)==='稼働');
+  const todayOff = MEMBERS.filter(m => getShiftByKey(m.name, todayStr)==='休日');
+  const todayUnset = MEMBERS.filter(m => getShiftByKey(m.name, todayStr)==='');
 
   const myShiftCount = getWorkedCount(selectedMember);
 
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="bg-gray-900 text-white px-4 py-3 flex items-center gap-3">
-        <button onClick={() => router.push('/dashboard')} className="text-gray-400 hover:text-white text-sm">← 戻る</button>
+        <button onClick={()=>router.push('/dashboard')} className="text-gray-400 hover:text-white text-sm">← 戻る</button>
         <div className="font-bold text-blue-400">シフト管理</div>
-        <span className="text-sm bg-gray-700 px-2 py-1 rounded">
-          {year}/{String(month + 1).padStart(2, '0')}
-        </span>
+        <span className="text-sm bg-gray-700 px-2 py-1 rounded">{year}/{String(month+1).padStart(2,'0')}</span>
       </div>
 
-      {/* タブ */}
-      <div className="bg-gray-900 flex">
-        <button onClick={() => setView('submit')}
-          className={`px-6 py-3 text-sm font-medium ${view === 'submit' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}>
-          シフト入力
-        </button>
-        <button onClick={() => setView('confirm')}
-          className={`px-6 py-3 text-sm font-medium ${view === 'confirm' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}>
-          全体確認
-        </button>
+      <div className="bg-gray-900 flex border-b border-gray-700">
+        <button onClick={()=>setView('submit')} className={`px-6 py-3 text-sm font-medium ${view==='submit'?'bg-blue-600 text-white':'text-gray-400'}`}>シフト入力</button>
+        <button onClick={()=>setView('confirm')} className={`px-6 py-3 text-sm font-medium ${view==='confirm'?'bg-blue-600 text-white':'text-gray-400'}`}>全体確認</button>
       </div>
 
       <div className="p-4 max-w-3xl mx-auto space-y-4">
 
-        {view === 'submit' && (
+        {/* 今日の稼働状況（常時表示） */}
+        <div className="bg-white rounded-xl p-4 shadow">
+          <div className="flex items-center justify-between mb-3">
+            <div className="font-bold text-gray-800">📅 今日の稼働状況</div>
+            <div className="text-sm text-gray-500">{today.getMonth()+1}/{today.getDate()}（{weekDays[today.getDay()]}）</div>
+          </div>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="bg-green-500 text-white rounded-xl px-4 py-3 text-center flex-1">
+              <div className="text-2xl font-bold">{todayWorking.length}</div>
+              <div className="text-xs">稼働中</div>
+            </div>
+            <div className="bg-gray-200 text-gray-600 rounded-xl px-4 py-3 text-center flex-1">
+              <div className="text-2xl font-bold">{todayOff.length}</div>
+              <div className="text-xs">休日</div>
+            </div>
+            <div className="bg-gray-100 text-gray-400 rounded-xl px-4 py-3 text-center flex-1">
+              <div className="text-2xl font-bold">{todayUnset.length}</div>
+              <div className="text-xs">未設定</div>
+            </div>
+          </div>
+          {todayWorking.length > 0 && (
+            <div className="mb-2">
+              <div className="text-xs text-gray-500 mb-2 font-medium">稼働メンバー</div>
+              <div className="flex flex-wrap gap-2">
+                {todayWorking.map(m => (
+                  <span key={m.id} className="bg-green-100 text-green-700 text-sm font-bold px-3 py-1 rounded-full">{m.name}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {todayOff.length > 0 && (
+            <div>
+              <div className="text-xs text-gray-500 mb-2 font-medium">休日</div>
+              <div className="flex flex-wrap gap-2">
+                {todayOff.map(m => (
+                  <span key={m.id} className="bg-gray-100 text-gray-500 text-sm px-3 py-1 rounded-full">{m.name}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {view==='submit' && (
           <>
-            {/* メンバー選択 */}
             <div className="bg-white rounded-xl p-4 shadow">
               <div className="font-bold text-gray-800 mb-3">メンバーを選択</div>
               <div className="flex flex-wrap gap-2">
                 {MEMBERS.map(m => (
-                  <button key={m.id} onClick={() => setSelectedMember(m.name)}
-                    className={`px-3 py-1 rounded-full text-sm font-medium ${selectedMember === m.name ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>
+                  <button key={m.id} onClick={()=>setSelectedMember(m.name)}
+                    className={`px-3 py-1 rounded-full text-sm font-medium ${selectedMember===m.name?'bg-blue-600 text-white':'bg-gray-100 text-gray-700'}`}>
                     {m.name}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* シフト入力 */}
             {selectedMember && (
               <div className="bg-white rounded-xl p-4 shadow">
                 <div className="flex items-center justify-between mb-4">
@@ -102,31 +137,23 @@ export default function ShiftPage() {
                 <div className="text-xs text-gray-500 mb-3">タップで 未設定 → 稼働 → 休日 と切り替わります</div>
                 <div className="grid grid-cols-7 gap-1">
                   {weekDays.map(d => (
-                    <div key={d} className={`text-center text-xs font-bold py-1 ${d === '日' ? 'text-red-500' : d === '土' ? 'text-blue-500' : 'text-gray-500'}`}>{d}</div>
+                    <div key={d} className={`text-center text-xs font-bold py-1 ${d==='日'?'text-red-500':d==='土'?'text-blue-500':'text-gray-500'}`}>{d}</div>
                   ))}
-                  {/* 月初の空白 */}
-                  {Array.from({ length: getDay(1) }, (_, i) => (
-                    <div key={`empty-${i}`} />
-                  ))}
+                  {Array.from({length: getDay(1)}, (_,i) => <div key={`e-${i}`}/>)}
                   {days.map(day => {
                     const shift = getShift(selectedMember, day);
-                    const dayOfWeek = getDay(day);
-                    const isToday = day === today.getDate();
+                    const dow = getDay(day);
+                    const isTodayDay = day===today.getDate();
                     return (
-                      <button
-                        key={day}
-                        onClick={() => toggleShift(selectedMember, day)}
-                        className={`
-                          aspect-square rounded-lg flex flex-col items-center justify-center text-xs font-bold
-                          ${shift === '稼働' ? 'bg-green-500 text-white' : shift === '休日' ? 'bg-gray-200 text-gray-400' : 'bg-gray-50 text-gray-700'}
-                          ${isToday ? 'ring-2 ring-blue-500' : ''}
-                          ${dayOfWeek === 0 ? 'text-red-500' : dayOfWeek === 6 ? 'text-blue-500' : ''}
-                          ${shift !== '' ? '' : dayOfWeek === 0 ? '!text-red-400' : dayOfWeek === 6 ? '!text-blue-400' : ''}
-                        `}
-                      >
+                      <button key={day} onClick={()=>toggleShift(selectedMember, day)}
+                        className={`aspect-square rounded-lg flex flex-col items-center justify-center text-xs font-bold
+                          ${shift==='稼働'?'bg-green-500 text-white':shift==='休日'?'bg-gray-200 text-gray-400':'bg-gray-50 text-gray-700'}
+                          ${isTodayDay?'ring-2 ring-blue-500':''}
+                          ${shift===''?(dow===0?'!text-red-400':dow===6?'!text-blue-400':''):''}
+                        `}>
                         <span>{day}</span>
-                        {shift === '稼働' && <span className="text-xs">稼</span>}
-                        {shift === '休日' && <span className="text-xs">休</span>}
+                        {shift==='稼働' && <span className="text-xs leading-none">稼</span>}
+                        {shift==='休日' && <span className="text-xs leading-none">休</span>}
                       </button>
                     );
                   })}
@@ -136,7 +163,7 @@ export default function ShiftPage() {
           </>
         )}
 
-        {view === 'confirm' && (
+        {view==='confirm' && (
           <div className="bg-white rounded-xl shadow overflow-hidden">
             <div className="font-bold text-gray-800 p-4 border-b">全体シフト確認</div>
             <div className="overflow-x-auto">
@@ -146,30 +173,26 @@ export default function ShiftPage() {
                     <th className="px-2 py-2 text-left sticky left-0 bg-gray-800">氏名</th>
                     {days.map(d => {
                       const dow = getDay(d);
+                      const isTodayDay = d===today.getDate();
                       return (
-                        <th key={d} className={`px-1 py-2 text-center min-w-6 ${dow === 0 ? 'text-red-400' : dow === 6 ? 'text-blue-400' : ''}`}>
-                          {d}
-                        </th>
+                        <th key={d} className={`px-1 py-2 text-center min-w-6 ${isTodayDay?'bg-blue-700':''} ${dow===0?'text-red-400':dow===6?'text-blue-400':''}`}>{d}</th>
                       );
                     })}
                     <th className="px-2 py-2 text-center">計</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {MEMBERS.map((m, i) => (
-                    <tr key={m.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                  {MEMBERS.map((m,i) => (
+                    <tr key={m.id} className={i%2===0?'bg-white':'bg-gray-50'}>
                       <td className="px-2 py-1 font-bold text-gray-900 sticky left-0 bg-inherit">{m.name}</td>
                       {days.map(d => {
                         const shift = getShift(m.name, d);
+                        const isTodayDay = d===today.getDate();
                         return (
-                          <td key={d} className="px-1 py-1 text-center">
-                            {shift === '稼働' ? (
-                              <span className="inline-block w-5 h-5 bg-green-500 rounded text-white text-xs flex items-center justify-center">稼</span>
-                            ) : shift === '休日' ? (
-                              <span className="inline-block w-5 h-5 bg-gray-200 rounded text-gray-400 text-xs flex items-center justify-center">休</span>
-                            ) : (
-                              <span className="text-gray-200">-</span>
-                            )}
+                          <td key={d} className={`px-1 py-1 text-center ${isTodayDay?'bg-blue-50':''}`}>
+                            {shift==='稼働' ? <span className="inline-flex w-5 h-5 bg-green-500 rounded text-white text-xs items-center justify-center">稼</span>
+                            : shift==='休日' ? <span className="inline-flex w-5 h-5 bg-gray-200 rounded text-gray-400 text-xs items-center justify-center">休</span>
+                            : <span className="text-gray-200">-</span>}
                           </td>
                         );
                       })}
@@ -181,10 +204,11 @@ export default function ShiftPage() {
                   <tr>
                     <td className="px-2 py-1 font-bold text-gray-900">人数</td>
                     {days.map(d => {
-                      const count = MEMBERS.filter(m => getShift(m.name, d) === '稼働').length;
+                      const count = MEMBERS.filter(m=>getShift(m.name,d)==='稼働').length;
+                      const isTodayDay = d===today.getDate();
                       return (
-                        <td key={d} className="px-1 py-1 text-center">
-                          {count > 0 ? <span className="font-bold text-gray-900">{count}</span> : <span className="text-gray-300">-</span>}
+                        <td key={d} className={`px-1 py-1 text-center ${isTodayDay?'bg-blue-50':''}`}>
+                          {count>0 ? <span className={`font-bold ${isTodayDay?'text-blue-600':'text-gray-900'}`}>{count}</span> : <span className="text-gray-300">-</span>}
                         </td>
                       );
                     })}

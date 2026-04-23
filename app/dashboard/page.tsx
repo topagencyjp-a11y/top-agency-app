@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { MEMBERS, TEAM_TARGET } from '@/lib/members';
 import { saveReport, getReports } from '@/lib/api';
 
-type Tab = 'input' | 'status' | 'analysis' | 'overall' | 'contracts';
+type Tab = 'input' | 'mine' | 'team' | 'contracts';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -20,8 +20,7 @@ export default function Dashboard() {
     startTime: '', endTime: '',
     acquiredCase: '', lostCase: '',
     goodPoints: '', issues: '', improvements: '', learnings: '',
-    gratitude: '',
-    planDays: 20,
+    gratitude: '', planDays: 20,
   });
 
   const loadReports = useCallback(async () => {
@@ -33,9 +32,7 @@ export default function Dashboard() {
     } catch {
       const stored = localStorage.getItem('reports');
       if (stored) setReports(JSON.parse(stored));
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }, []);
 
   useEffect(() => {
@@ -52,31 +49,18 @@ export default function Dashboard() {
     const existing = reports.find(r => r.date === selectedDate && r.name === user.name);
     if (existing) {
       setForm({
-        visits: Number(existing.visits) || 0,
-        netMeet: Number(existing.netMeet) || 0,
-        mainMeet: Number(existing.mainMeet) || 0,
-        negotiation: Number(existing.negotiation) || 0,
-        acquired: Number(existing.acquired) || 0,
-        startTime: existing.startTime || '',
-        endTime: existing.endTime || '',
-        acquiredCase: existing.acquiredCase || '',
-        lostCase: existing.lostCase || '',
-        goodPoints: existing.goodPoints || '',
-        issues: existing.issues || '',
-        improvements: existing.improvements || '',
-        learnings: existing.learnings || '',
-        gratitude: existing.gratitude || '',
-        planDays: Number(existing.planDays) || 20,
+        visits: Number(existing.visits)||0, netMeet: Number(existing.netMeet)||0,
+        mainMeet: Number(existing.mainMeet)||0, negotiation: Number(existing.negotiation)||0,
+        acquired: Number(existing.acquired)||0, startTime: existing.startTime||'',
+        endTime: existing.endTime||'', acquiredCase: existing.acquiredCase||'',
+        lostCase: existing.lostCase||'', goodPoints: existing.goodPoints||'',
+        issues: existing.issues||'', improvements: existing.improvements||'',
+        learnings: existing.learnings||'', gratitude: existing.gratitude||'',
+        planDays: Number(existing.planDays)||20,
       });
     } else {
-      setForm({
-        visits: 0, netMeet: 0, mainMeet: 0, negotiation: 0, acquired: 0,
-        startTime: '', endTime: '',
-        acquiredCase: '', lostCase: '',
-        goodPoints: '', issues: '', improvements: '', learnings: '',
-        gratitude: '',
-        planDays: 20,
-      });
+      setForm({ visits:0,netMeet:0,mainMeet:0,negotiation:0,acquired:0,startTime:'',endTime:'',
+        acquiredCase:'',lostCase:'',goodPoints:'',issues:'',improvements:'',learnings:'',gratitude:'',planDays:20 });
     }
   }, [selectedDate, user, reports]);
 
@@ -88,417 +72,379 @@ export default function Dashboard() {
       await loadReports();
       alert('保存しました！');
     } catch {
-      const updated = [...reports.filter(r => !(r.date === selectedDate && r.name === user?.name)), report];
+      const updated = [...reports.filter(r => !(r.date===selectedDate && r.name===user?.name)), report];
       setReports(updated);
       localStorage.setItem('reports', JSON.stringify(updated));
       alert('保存しました！（オフライン）');
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
   const copyReport = () => {
     const d = new Date(selectedDate);
     const dateStr = `${d.getMonth()+1}/${d.getDate()}（${['日','月','火','水','木','金','土'][d.getDay()]}）`;
-    const lines = [
-      `【${user?.name} 日報 ${dateStr}】`,
-      ``,
-      `■ 稼働時間`,
-      `${form.startTime || '--:--'} 〜 ${form.endTime || '--:--'}`,
-      ``,
-      `■ 行動量`,
-      `訪問数：${form.visits}　対面数：${form.netMeet}　主権対面：${form.mainMeet}　商談：${form.negotiation}　獲得数：${form.acquired}`,
-      ``,
-    ];
+    const lines = [`【${user?.name} 日報 ${dateStr}】`,``,`■ 稼働時間`,`${form.startTime||'--:--'} 〜 ${form.endTime||'--:--'}`,``,`■ 行動量`,`訪問：${form.visits}　対面：${form.netMeet}　主権：${form.mainMeet}　商談：${form.negotiation}　獲得：${form.acquired}`,``];
     if (form.acquiredCase) lines.push(`■ 獲得案件\n${form.acquiredCase}\n`);
     if (form.lostCase) lines.push(`■ 失注案件\n${form.lostCase}\n`);
     if (form.goodPoints) lines.push(`■ よかった点\n${form.goodPoints}\n`);
     if (form.issues) lines.push(`■ 課題・失敗\n${form.issues}\n`);
-    if (form.improvements) lines.push(`■ 明日の改善ポイント\n${form.improvements}\n`);
-    if (form.learnings) lines.push(`■ 学び・気づき\n${form.learnings}\n`);
-    if (form.gratitude) lines.push(`■ 感謝・シェアしたいこと\n${form.gratitude}\n`);
-    navigator.clipboard.writeText(lines.join('\n')).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
+    if (form.improvements) lines.push(`■ 明日の改善\n${form.improvements}\n`);
+    if (form.learnings) lines.push(`■ 学び\n${form.learnings}\n`);
+    if (form.gratitude) lines.push(`■ 感謝\n${form.gratitude}\n`);
+    navigator.clipboard.writeText(lines.join('\n')).then(() => { setCopied(true); setTimeout(()=>setCopied(false),2000); });
   };
 
-  const thisMonth = new Date().toISOString().slice(0, 7);
-  const myReports = reports.filter(r => r.name === user?.name && r.date?.startsWith(thisMonth));
-  const myAcquired = myReports.reduce((s, r) => s + (Number(r.acquired) || 0), 0);
-  const myMember = MEMBERS.find(m => m.name === user?.name);
-  const myTarget = myMember?.target || 0;
-  const myRate = myTarget > 0 ? Math.round(myAcquired / myTarget * 100) : 0;
-  const workedDays = myReports.filter(r => Number(r.visits) > 0).length;
-  const productivity = workedDays > 0 ? (myAcquired / workedDays).toFixed(2) : '0.00';
-  const remainDays = (form.planDays || 20) - workedDays;
-  const forecast = Math.round(Number(productivity) * (workedDays + remainDays));
+  const thisMonth = new Date().toISOString().slice(0,7);
+  const myReports = reports.filter(r => r.name===user?.name && r.date?.startsWith(thisMonth));
+  const myAcquired = myReports.reduce((s,r)=>s+(Number(r.acquired)||0),0);
+  const myMember = MEMBERS.find(m=>m.name===user?.name);
+  const myTarget = myMember?.target||0;
+  const myRate = myTarget>0 ? Math.round(myAcquired/myTarget*100) : 0;
+  const workedDays = myReports.filter(r=>Number(r.visits)>0).length;
+  const productivity = workedDays>0 ? (myAcquired/workedDays).toFixed(2) : '0.00';
+  const remainDays = Math.max((form.planDays||20)-workedDays,0);
+  const forecast = Math.round(Number(productivity)*(workedDays+remainDays));
 
-  const teamAcquired = MEMBERS.map(m => {
-    const mReports = reports.filter(r => r.name === m.name && r.date?.startsWith(thisMonth));
-    const acquired = mReports.reduce((s, r) => s + (Number(r.acquired) || 0), 0);
-    const worked = mReports.filter(r => Number(r.visits) > 0).length;
-    const prod = worked > 0 ? acquired / worked : 0;
-    return { ...m, acquired, worked, productivity: prod.toFixed(2) };
-  }).sort((a, b) => b.acquired - a.acquired);
+  const teamStats = MEMBERS.map(m => {
+    const mR = reports.filter(r=>r.name===m.name && r.date?.startsWith(thisMonth));
+    const acquired = mR.reduce((s,r)=>s+(Number(r.acquired)||0),0);
+    const worked = mR.filter(r=>Number(r.visits)>0).length;
+    const visits = mR.reduce((s,r)=>s+(Number(r.visits)||0),0);
+    const netMeet = mR.reduce((s,r)=>s+(Number(r.netMeet)||0),0);
+    const mainMeet = mR.reduce((s,r)=>s+(Number(r.mainMeet)||0),0);
+    const negotiation = mR.reduce((s,r)=>s+(Number(r.negotiation)||0),0);
+    const prod = worked>0 ? acquired/worked : 0;
+    const remain = Math.max(20-worked,0);
+    const fc = Math.round(prod*(worked+remain));
+    const rate = m.target>0 ? Math.round(acquired/m.target*100) : 0;
+    const meetRate = visits>0 ? Math.round(netMeet/visits*100) : 0;
+    const getRate = netMeet>0 ? Math.round(acquired/netMeet*100) : 0;
+    return { ...m, acquired, worked, visits, netMeet, mainMeet, negotiation, prod: prod.toFixed(2), remain, forecast: fc, rate, meetRate, getRate };
+  }).sort((a,b)=>b.acquired-a.acquired);
 
-  const totalAcquired = teamAcquired.reduce((s, m) => s + m.acquired, 0);
+  const totalAcquired = teamStats.reduce((s,m)=>s+m.acquired,0);
+  const teamForecast = teamStats.reduce((s,m)=>s+m.forecast,0);
+  const teamRate = Math.round(totalAcquired/TEAM_TARGET*100);
+  const totalVisits = teamStats.reduce((s,m)=>s+m.visits,0);
+  const totalNetMeet = teamStats.reduce((s,m)=>s+m.netMeet,0);
 
-  const tabs = [
-    { id: 'input', label: '✏️ 入力' },
-    { id: 'status', label: '📊 現状整理' },
-    { id: 'analysis', label: '📈 分析' },
-    { id: 'overall', label: '🏆 全体' },
-    { id: 'contracts', label: '🏠 契約宅' },
+  const inputStyle = "w-full border border-gray-300 rounded px-3 py-2 text-sm mt-1 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500";
+  const textareaStyle = "w-full border border-gray-300 rounded px-3 py-2 text-sm mt-1 h-20 resize-none text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500";
+  const formatDate = (s:string) => { const d=new Date(s); return `${d.getMonth()+1}/${d.getDate()}（${['日','月','火','水','木','金','土'][d.getDay()]}）`; };
+  const changeDate = (delta:number) => { const d=new Date(selectedDate); d.setDate(d.getDate()+delta); setSelectedDate(d.toISOString().split('T')[0]); };
+  const isToday = selectedDate===new Date().toISOString().split('T')[0];
+  const hasData = reports.some(r=>r.date===selectedDate && r.name===user?.name);
+  const actionItems = [
+    {key:'visits',label:'訪問数',color:'bg-blue-500'},
+    {key:'netMeet',label:'対面数',color:'bg-purple-500'},
+    {key:'mainMeet',label:'主権対面',color:'bg-indigo-500'},
+    {key:'negotiation',label:'商談',color:'bg-orange-500'},
+    {key:'acquired',label:'獲得数',color:'bg-green-500'},
   ];
 
-  const inputStyle = "w-full border border-gray-300 rounded px-3 py-2 text-sm mt-1 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500";
-  const textareaStyle = "w-full border border-gray-300 rounded px-3 py-2 text-sm mt-1 h-20 resize-none text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500";
-
-  const formatDate = (dateStr: string) => {
-    const d = new Date(dateStr);
-    return `${d.getMonth()+1}/${d.getDate()}（${['日','月','火','水','木','金','土'][d.getDay()]}）`;
-  };
-
-  const changeDate = (delta: number) => {
-    const d = new Date(selectedDate);
-    d.setDate(d.getDate() + delta);
-    setSelectedDate(d.toISOString().split('T')[0]);
-  };
-
-  const isToday = selectedDate === new Date().toISOString().split('T')[0];
-  const hasData = reports.some(r => r.date === selectedDate && r.name === user?.name);
-
-  const actionItems = [
-    { key: 'visits', label: '訪問数', color: 'bg-blue-500' },
-    { key: 'netMeet', label: '対面数', color: 'bg-purple-500' },
-    { key: 'mainMeet', label: '主権対面', color: 'bg-indigo-500' },
-    { key: 'negotiation', label: '商談', color: 'bg-orange-500' },
-    { key: 'acquired', label: '獲得数', color: 'bg-green-500' },
+  const tabs = [
+    {id:'input',label:'✏️ 入力'},
+    {id:'mine',label:'📊 自分'},
+    {id:'team',label:'🏆 全体'},
+    {id:'contracts',label:'🏠 契約宅'},
   ];
 
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="bg-gray-900 text-white px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="font-bold text-blue-400">TOP</div>
-          <span className="text-sm bg-gray-700 px-2 py-1 rounded">{thisMonth.replace('-', '/')}</span>
+          <div className="font-bold text-blue-400 text-lg">TOP</div>
+          <span className="text-sm bg-gray-700 px-2 py-1 rounded">{thisMonth.replace('-','/')}</span>
           {user && <span className="text-sm text-gray-300">{user.name}</span>}
         </div>
         <div className="flex items-center gap-3">
           {loading && <span className="text-xs text-gray-400">同期中...</span>}
-          <button onClick={() => { localStorage.clear(); router.push('/login'); }}
-            className="text-gray-400 text-sm hover:text-white">ログアウト</button>
+          <button onClick={()=>{localStorage.clear();router.push('/login');}} className="text-gray-400 text-sm hover:text-white">ログアウト</button>
         </div>
       </div>
 
-      <div className="bg-gray-900 flex overflow-x-auto">
-        {tabs.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id as Tab)}
-            className={`px-4 py-3 text-sm whitespace-nowrap transition ${tab === t.id ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}>
+      <div className="bg-gray-900 flex overflow-x-auto border-b border-gray-700">
+        {tabs.map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id as Tab)}
+            className={`px-4 py-3 text-sm whitespace-nowrap transition ${tab===t.id?'bg-blue-600 text-white':'text-gray-400 hover:text-white'}`}>
             {t.label}
           </button>
         ))}
       </div>
 
       <div className="p-4 max-w-2xl mx-auto">
-        {tab === 'input' && (
+
+        {/* ===== 入力タブ ===== */}
+        {tab==='input' && (
           <div className="space-y-4">
-            {/* 日付選択 */}
             <div className="bg-white rounded-xl p-4 shadow">
               <div className="flex items-center justify-between">
-                <button onClick={() => changeDate(-1)} className="w-9 h-9 bg-gray-100 rounded-full text-gray-600 font-bold hover:bg-gray-200">‹</button>
+                <button onClick={()=>changeDate(-1)} className="w-9 h-9 bg-gray-100 rounded-full text-gray-600 font-bold hover:bg-gray-200">‹</button>
                 <div className="text-center">
                   <div className="flex items-center gap-2 justify-center">
                     <span className="font-bold text-gray-900 text-lg">{formatDate(selectedDate)}</span>
                     {isToday && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">今日</span>}
                     {hasData && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">入力済み</span>}
                   </div>
-                  <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
-                    className="text-xs text-gray-400 mt-1 border-0 bg-transparent cursor-pointer" />
+                  <input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)} className="text-xs text-gray-400 mt-1 border-0 bg-transparent cursor-pointer" />
                 </div>
-                <button onClick={() => changeDate(1)} disabled={isToday}
-                  className="w-9 h-9 bg-gray-100 rounded-full text-gray-600 font-bold hover:bg-gray-200 disabled:opacity-30">›</button>
+                <button onClick={()=>changeDate(1)} disabled={isToday} className="w-9 h-9 bg-gray-100 rounded-full text-gray-600 font-bold hover:bg-gray-200 disabled:opacity-30">›</button>
               </div>
             </div>
 
-            {/* 稼働時間 */}
             <div className="bg-white rounded-xl p-4 shadow">
               <div className="font-bold text-gray-800 mb-3">⏰ 稼働時間</div>
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-sm font-medium text-gray-700">開始時刻</label>
-                  <input type="time" value={form.startTime} onChange={e => setForm({...form, startTime: e.target.value})} className={inputStyle} />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700">終了時刻</label>
-                  <input type="time" value={form.endTime} onChange={e => setForm({...form, endTime: e.target.value})} className={inputStyle} />
-                </div>
+                <div><label className="text-sm font-medium text-gray-700">開始</label><input type="time" value={form.startTime} onChange={e=>setForm({...form,startTime:e.target.value})} className={inputStyle}/></div>
+                <div><label className="text-sm font-medium text-gray-700">終了</label><input type="time" value={form.endTime} onChange={e=>setForm({...form,endTime:e.target.value})} className={inputStyle}/></div>
               </div>
             </div>
 
-            {/* 行動量 */}
             <div className="bg-white rounded-xl p-4 shadow">
               <div className="font-bold text-gray-800 mb-3">📊 行動量</div>
-              {actionItems.map(item => (
+              {actionItems.map(item=>(
                 <div key={item.key} className="flex items-center justify-between py-3 border-b last:border-0 gap-3">
                   <span className="text-sm font-medium text-gray-800 w-20 shrink-0">{item.label}</span>
                   <div className="flex items-center gap-2 ml-auto">
-                    <button onClick={() => setForm({...form, [item.key]: Math.max(0, (form as any)[item.key] - 1)})}
-                      className="w-9 h-9 bg-gray-200 rounded-full text-gray-700 font-bold text-lg hover:bg-gray-300 shrink-0">−</button>
-                    <input
-                      type="number"
-                      min="0"
-                      value={(form as any)[item.key]}
-                      onChange={e => setForm({...form, [item.key]: Math.max(0, parseInt(e.target.value) || 0)})}
-                      className="w-16 text-center font-bold text-xl text-gray-900 border border-gray-300 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <button onClick={() => setForm({...form, [item.key]: (form as any)[item.key] + 1})}
-                      className={`w-9 h-9 ${item.color} rounded-full text-white font-bold text-lg hover:opacity-90 shrink-0`}>＋</button>
+                    <button onClick={()=>setForm({...form,[item.key]:Math.max(0,(form as any)[item.key]-1)})} className="w-9 h-9 bg-gray-200 rounded-full text-gray-700 font-bold text-lg hover:bg-gray-300">−</button>
+                    <input type="number" min="0" value={(form as any)[item.key]} onChange={e=>setForm({...form,[item.key]:Math.max(0,parseInt(e.target.value)||0)})} className="w-16 text-center font-bold text-xl text-gray-900 border border-gray-300 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                    <button onClick={()=>setForm({...form,[item.key]:(form as any)[item.key]+1})} className={`w-9 h-9 ${item.color} rounded-full text-white font-bold text-lg hover:opacity-90`}>＋</button>
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* 日報 */}
             <div className="bg-white rounded-xl p-4 shadow">
               <div className="font-bold text-gray-800 mb-3">📝 日報</div>
               {[
-                { key: 'acquiredCase', label: '🏆 獲得案件', placeholder: 'どういったお客さんか・角度感・フックを詳しく' },
-                { key: 'lostCase', label: '😅 失注案件', placeholder: '失注案件の詳細（なければ「なし」）' },
-                { key: 'goodPoints', label: '✅ よかった点', placeholder: '今日のよかった点を具体的に' },
-                { key: 'issues', label: '❌ 課題・失敗', placeholder: '課題や失敗を正直に振り返る' },
-                { key: 'improvements', label: '📌 明日の改善ポイント', placeholder: '明日に活かす具体的な改善点' },
-                { key: 'learnings', label: '💡 学び・気づき', placeholder: '今日の学び・気づき・新発見' },
-                { key: 'gratitude', label: '🙏 感謝・シェアしたいこと（任意）', placeholder: 'チームへの感謝や共有したいこと' },
-              ].map(item => (
+                {key:'acquiredCase',label:'🏆 獲得案件',ph:'お客さんの属性・角度感・フックを詳しく'},
+                {key:'lostCase',label:'😅 失注案件',ph:'失注の詳細（なければ「なし」）'},
+                {key:'goodPoints',label:'✅ よかった点',ph:'今日のよかった点を具体的に'},
+                {key:'issues',label:'❌ 課題・失敗',ph:'課題や失敗を正直に'},
+                {key:'improvements',label:'📌 明日の改善',ph:'明日に活かす改善点'},
+                {key:'learnings',label:'💡 学び・気づき',ph:'今日の学び・新発見'},
+                {key:'gratitude',label:'🙏 感謝（任意）',ph:'チームへの感謝や共有したいこと'},
+              ].map(item=>(
                 <div key={item.key} className="mb-4">
                   <label className="text-sm font-bold text-gray-700">{item.label}</label>
-                  <textarea value={(form as any)[item.key]} onChange={e => setForm({...form, [item.key]: e.target.value})}
-                    placeholder={item.placeholder} className={textareaStyle} />
+                  <textarea value={(form as any)[item.key]} onChange={e=>setForm({...form,[item.key]:e.target.value})} placeholder={item.ph} className={textareaStyle}/>
                 </div>
               ))}
             </div>
 
-            {/* 稼働計画 */}
             <div className="bg-white rounded-xl p-4 shadow">
-              <div className="font-bold text-gray-800 mb-3">📅 稼働計画</div>
-              <div>
-                <label className="text-sm font-medium text-gray-700">計画稼働日数</label>
-                <input type="number" value={form.planDays} onChange={e => setForm({...form, planDays: +e.target.value})} className={inputStyle} />
-              </div>
+              <div className="font-bold text-gray-800 mb-2">📅 計画稼働日数</div>
+              <input type="number" value={form.planDays} onChange={e=>setForm({...form,planDays:+e.target.value})} className={inputStyle}/>
             </div>
 
-            {/* ボタン */}
             <div className="grid grid-cols-2 gap-3">
-              <button onClick={copyReport}
-                className="bg-white border-2 border-blue-600 text-blue-600 font-bold py-4 rounded-xl text-sm hover:bg-blue-50">
-                {copied ? '✅ コピーしました！' : '📋 日報をコピー'}
+              <button onClick={copyReport} className="bg-white border-2 border-blue-600 text-blue-600 font-bold py-4 rounded-xl text-sm hover:bg-blue-50">
+                {copied?'✅ コピー済み！':'📋 日報をコピー'}
               </button>
-              <button onClick={handleSave} disabled={saving}
-                className="bg-blue-600 text-white font-bold py-4 rounded-xl text-sm hover:bg-blue-700 disabled:opacity-50">
-                {saving ? '保存中...' : '💾 保存する'}
+              <button onClick={handleSave} disabled={saving} className="bg-blue-600 text-white font-bold py-4 rounded-xl text-sm hover:bg-blue-700 disabled:opacity-50">
+                {saving?'保存中...':'💾 保存する'}
               </button>
             </div>
           </div>
         )}
 
-        {tab === 'status' && (
+        {/* ===== 自分タブ ===== */}
+        {tab==='mine' && (
           <div className="space-y-4">
             <div className="bg-white rounded-xl p-4 shadow">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <div className="text-xl font-bold text-gray-900">{user?.name}</div>
-                  <div className="text-gray-500 text-sm">{thisMonth.replace('-','/')}月</div>
+                  <div className="text-gray-500 text-sm">{myMember?.role==='closer'?'クローザー':'アポインター'} / 目標 {myTarget}件</div>
                 </div>
-                {myRate < 100 && forecast < myTarget && (
-                  <div className="bg-red-500 text-white text-sm font-bold px-3 py-1 rounded-full">未達予測 -{myTarget - forecast}件</div>
-                )}
+                <div className={`text-2xl font-bold ${myRate>=80?'text-green-600':myRate>=50?'text-yellow-500':'text-red-500'}`}>{myRate}%</div>
               </div>
-              <div className="space-y-2">
-                {[
-                  { label: '月間目標', value: `${myTarget}件` },
-                  { label: '実績（獲得件数）', value: `${myAcquired}件`, color: 'text-blue-600' },
-                  { label: '実稼働日数', value: `${workedDays}日` },
-                  { label: '残稼働日数', value: `${remainDays}日`, color: remainDays <= 5 ? 'text-red-500' : 'text-gray-900' },
-                  { label: '着地予測', value: `${forecast}件`, color: 'text-orange-500' },
-                ].map(item => (
-                  <div key={item.label} className="flex justify-between items-center py-2 border-b last:border-0">
-                    <span className="text-gray-700 text-sm font-medium">{item.label}</span>
-                    <span className={`font-bold text-base ${item.color || 'text-gray-900'}`}>{item.value}</span>
+              <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
+                <div className={`h-3 rounded-full ${myRate>=80?'bg-green-500':myRate>=50?'bg-yellow-500':'bg-red-500'}`} style={{width:`${Math.min(myRate,100)}%`}}/>
+              </div>
+              {[
+                {label:'獲得件数',value:`${myAcquired}件`,color:'text-blue-600'},
+                {label:'着地予測',value:`${forecast}件`,color:'text-orange-500'},
+                {label:'実稼働日数',value:`${workedDays}日`},
+                {label:'残稼働日数',value:`${remainDays}日`,color:remainDays<=5?'text-red-500':''},
+                {label:'生産性',value:`${productivity}件/日`},
+              ].map(item=>(
+                <div key={item.label} className="flex justify-between items-center py-2 border-b last:border-0">
+                  <span className="text-gray-600 text-sm">{item.label}</span>
+                  <span className={`font-bold ${item.color||'text-gray-900'}`}>{item.value}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="bg-white rounded-xl p-4 shadow">
+              <div className="font-bold text-gray-800 mb-3">📈 今月の行動量</div>
+              {actionItems.map(item=>{
+                const total = myReports.reduce((s,r)=>s+(Number(r[item.key])||0),0);
+                const avg = workedDays>0?(total/workedDays).toFixed(1):'0.0';
+                return (
+                  <div key={item.key} className="flex justify-between items-center py-2 border-b last:border-0">
+                    <span className="text-sm text-gray-700">{item.label}</span>
+                    <div className="text-right">
+                      <span className="font-bold text-gray-900">{total}</span>
+                      <span className="text-xs text-gray-400 ml-2">({avg}/日)</span>
+                    </div>
                   </div>
-                ))}
-              </div>
-            </div>
-            <div className="bg-white rounded-xl p-4 shadow">
-              <div className="font-bold text-gray-800 mb-2">⚡ 生産性</div>
-              <div className="text-3xl font-bold text-blue-600">{productivity} <span className="text-base text-gray-500">件/日</span></div>
-              <div className="mt-3 p-3 bg-blue-50 rounded-lg">
-                <div className="text-sm text-blue-700 font-bold">着地予測: {forecast}件</div>
-                <div className="text-xs text-blue-600 mt-1">{productivity} × {workedDays + remainDays}日 = {forecast}件</div>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl p-4 shadow">
-              <div className="font-bold text-gray-800 mb-3">達成率</div>
-              <div className="flex items-center gap-3">
-                <div className="flex-1 bg-gray-200 rounded-full h-4">
-                  <div className={`h-4 rounded-full ${myRate >= 80 ? 'bg-green-500' : myRate >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                    style={{ width: `${Math.min(myRate, 100)}%` }} />
+                );
+              })}
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="bg-purple-50 rounded-lg p-3 text-center">
+                  <div className="text-xs text-gray-500">対面率</div>
+                  <div className="font-bold text-purple-700">{myReports.reduce((s,r)=>s+(Number(r.visits)||0),0)>0?Math.round(myReports.reduce((s,r)=>s+(Number(r.netMeet)||0),0)/myReports.reduce((s,r)=>s+(Number(r.visits)||0),0)*100):0}%</div>
                 </div>
-                <span className="font-bold text-lg text-gray-900">{myRate}%</span>
+                <div className="bg-green-50 rounded-lg p-3 text-center">
+                  <div className="text-xs text-gray-500">獲得率</div>
+                  <div className="font-bold text-green-700">{myReports.reduce((s,r)=>s+(Number(r.netMeet)||0),0)>0?Math.round(myAcquired/myReports.reduce((s,r)=>s+(Number(r.netMeet)||0),0)*100):0}%</div>
+                </div>
               </div>
             </div>
           </div>
         )}
 
-        {tab === 'analysis' && (
+        {/* ===== 全体タブ ===== */}
+        {tab==='team' && (
           <div className="space-y-4">
-            {/* 個人サマリー */}
-            <div className="bg-white rounded-xl p-4 shadow">
-              <div className="font-bold text-gray-800 mb-3">📊 個人サマリー — {user?.name}</div>
-              <div className="grid grid-cols-3 gap-3 text-center">
-                {[
-                  { label: '生産性', value: productivity },
-                  { label: '実稼働', value: `${workedDays}日` },
-                  { label: '残稼働', value: `${remainDays}日` },
-                ].map(item => (
-                  <div key={item.label} className="bg-gray-50 rounded-lg p-3">
-                    <div className="text-xs text-gray-500 font-medium">{item.label}</div>
-                    <div className="font-bold text-lg text-blue-600">{item.value}</div>
-                  </div>
-                ))}
+            {/* チームKPI */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-gray-900 text-white rounded-xl p-4">
+                <div className="text-xs text-gray-400 mb-1">チーム獲得</div>
+                <div className="text-3xl font-bold text-blue-400">{totalAcquired}<span className="text-sm text-gray-400 ml-1">件</span></div>
+                <div className="text-xs text-gray-400">目標 {TEAM_TARGET}件</div>
+                <div className="mt-2 w-full bg-gray-700 rounded-full h-2">
+                  <div className="bg-blue-400 h-2 rounded-full" style={{width:`${Math.min(teamRate,100)}%`}}/>
+                </div>
+                <div className="text-xs text-gray-400 mt-1">{teamRate}%</div>
+              </div>
+              <div className="bg-gray-900 text-white rounded-xl p-4">
+                <div className="text-xs text-gray-400 mb-1">チーム着地予測</div>
+                <div className={`text-3xl font-bold ${teamForecast>=TEAM_TARGET?'text-green-400':'text-orange-400'}`}>{teamForecast}<span className="text-sm ml-1 text-gray-400">件</span></div>
+                <div className="text-xs text-gray-400">目標まであと {Math.max(TEAM_TARGET-totalAcquired,0)}件</div>
+                <div className="text-xs mt-1">
+                  <span className="text-gray-400">対面率 </span>
+                  <span className="text-purple-400 font-bold">{totalVisits>0?Math.round(totalNetMeet/totalVisits*100):0}%</span>
+                </div>
               </div>
             </div>
-            {/* 個人行動量 */}
+
+            {/* ランキング */}
             <div className="bg-white rounded-xl p-4 shadow">
-              <div className="font-bold text-gray-800 mb-3">📈 個人行動量合計</div>
-              {actionItems.map(item => {
-                const total = myReports.reduce((s, r) => s + (Number(r[item.key]) || 0), 0);
-                const avg = workedDays > 0 ? (total / workedDays).toFixed(1) : '0.0';
+              <div className="font-bold text-gray-800 mb-3">🏆 獲得件数ランキング</div>
+              {teamStats.map((m,i)=>{
+                const max = teamStats[0].acquired||1;
+                const barColors = ['bg-red-500','bg-orange-400','bg-yellow-500'];
+                const barColor = i<3 ? barColors[i] : 'bg-blue-500';
                 return (
-                  <div key={item.key} className="flex justify-between items-center py-2 border-b last:border-0">
-                    <span className="text-sm font-medium text-gray-700">{item.label}</span>
-                    <div className="text-right">
-                      <span className="font-bold text-gray-900">{total}</span>
-                      <span className="text-xs text-gray-500 ml-2">({avg}/日)</span>
+                  <div key={m.id} className="flex items-center gap-2 py-2 border-b last:border-0">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 ${i===0?'bg-yellow-500':i===1?'bg-gray-400':i===2?'bg-orange-600':'bg-gray-300'}`}>{i+1}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-bold text-gray-900">{m.name}</span>
+                        <span className="text-sm font-bold text-gray-900 ml-2">{m.acquired}件</span>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-4">
+                        <div className={`${barColor} h-4 rounded-full flex items-center justify-end pr-1 transition-all`} style={{width:`${m.acquired>0?m.acquired/max*100:0}%`}}>
+                          {m.acquired>0 && <span className="text-white text-xs font-bold">{m.acquired}</span>}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 );
               })}
             </div>
+
             {/* チーム行動量 */}
             <div className="bg-white rounded-xl p-4 shadow">
-              <div className="font-bold text-gray-800 mb-3">👥 チーム行動量合計</div>
-              <div className="grid grid-cols-5 gap-2 text-center mb-4">
+              <div className="font-bold text-gray-800 mb-3">📊 チーム行動量</div>
+              <div className="grid grid-cols-5 gap-2 text-center">
                 {[
-                  { label: '訪問', key: 'visits', color: 'bg-blue-50 text-blue-700' },
-                  { label: '対面', key: 'netMeet', color: 'bg-purple-50 text-purple-700' },
-                  { label: '主権', key: 'mainMeet', color: 'bg-indigo-50 text-indigo-700' },
-                  { label: '商談', key: 'negotiation', color: 'bg-orange-50 text-orange-700' },
-                  { label: '獲得', key: 'acquired', color: 'bg-green-50 text-green-700' },
-                ].map(item => {
-                  const total = teamAcquired.reduce((s, m) => s + reports.filter(r => r.name === m.name && r.date?.startsWith(thisMonth)).reduce((ss, r) => ss + (Number(r[item.key]) || 0), 0), 0);
-                  return (
-                    <div key={item.label} className={`${item.color} rounded-lg p-2`}>
-                      <div className="text-xs font-medium">{item.label}</div>
-                      <div className="font-bold text-lg">{total}</div>
-                    </div>
-                  );
-                })}
+                  {label:'訪問',val:totalVisits,color:'bg-blue-50 text-blue-700'},
+                  {label:'対面',val:totalNetMeet,color:'bg-purple-50 text-purple-700'},
+                  {label:'主権',val:teamStats.reduce((s,m)=>s+m.mainMeet,0),color:'bg-indigo-50 text-indigo-700'},
+                  {label:'商談',val:teamStats.reduce((s,m)=>s+m.negotiation,0),color:'bg-orange-50 text-orange-700'},
+                  {label:'獲得',val:totalAcquired,color:'bg-green-50 text-green-700'},
+                ].map(item=>(
+                  <div key={item.label} className={`${item.color} rounded-lg p-2`}>
+                    <div className="text-xs font-medium">{item.label}</div>
+                    <div className="font-bold text-lg">{item.val}</div>
+                  </div>
+                ))}
               </div>
-              {/* メンバー別行動量 */}
+            </div>
+
+            {/* メンバー別テーブル */}
+            <div className="bg-white rounded-xl shadow overflow-hidden">
+              <div className="font-bold text-gray-800 p-4 border-b">📋 メンバー別数値</div>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
-                  <thead className="bg-gray-100">
+                  <thead className="bg-gray-800 text-white">
                     <tr>
-                      {['氏名', '訪問', '対面', '主権', '商談', '獲得', '生産性'].map(h => (
-                        <th key={h} className="px-2 py-2 text-left text-gray-600 font-bold">{h}</th>
+                      {['氏名','目標','現在','着地','達成率','生産性','稼働','対面率','獲得率'].map(h=>(
+                        <th key={h} className="px-2 py-2 text-left whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {teamAcquired.map((m, i) => {
-                      const mR = reports.filter(r => r.name === m.name && r.date?.startsWith(thisMonth));
-                      const v = mR.reduce((s, r) => s + (Number(r.visits) || 0), 0);
-                      const nm = mR.reduce((s, r) => s + (Number(r.netMeet) || 0), 0);
-                      const mm = mR.reduce((s, r) => s + (Number(r.mainMeet) || 0), 0);
-                      const ng = mR.reduce((s, r) => s + (Number(r.negotiation) || 0), 0);
-                      return (
-                        <tr key={m.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                          <td className="px-2 py-2 font-bold text-gray-900">{m.name}</td>
-                          <td className="px-2 py-2 text-blue-700">{v}</td>
-                          <td className="px-2 py-2 text-purple-700">{nm}</td>
-                          <td className="px-2 py-2 text-indigo-700">{mm}</td>
-                          <td className="px-2 py-2 text-orange-700">{ng}</td>
-                          <td className="px-2 py-2 font-bold text-green-700">{m.acquired}</td>
-                          <td className="px-2 py-2 text-gray-600">{m.productivity}</td>
-                        </tr>
-                      );
-                    })}
+                    {teamStats.map((m,i)=>(
+                      <tr key={m.id} className={i%2===0?'bg-white':'bg-gray-50'}>
+                        <td className="px-2 py-2 font-bold text-gray-900">{m.name}</td>
+                        <td className="px-2 py-2 text-gray-600">{m.target}</td>
+                        <td className="px-2 py-2 font-bold text-blue-600">{m.acquired}</td>
+                        <td className="px-2 py-2 font-bold text-orange-500">{m.forecast}</td>
+                        <td className="px-2 py-2"><span className={`font-bold ${m.rate>=80?'text-green-600':m.rate>=50?'text-yellow-600':'text-red-500'}`}>{m.rate}%</span></td>
+                        <td className="px-2 py-2 text-gray-600">{m.prod}</td>
+                        <td className="px-2 py-2 text-gray-600">{m.worked}日</td>
+                        <td className="px-2 py-2 text-purple-600">{m.meetRate}%</td>
+                        <td className="px-2 py-2 text-green-600">{m.getRate}%</td>
+                      </tr>
+                    ))}
                   </tbody>
+                  <tfoot className="bg-gray-100 font-bold">
+                    <tr>
+                      <td className="px-2 py-2 text-gray-900">合計</td>
+                      <td className="px-2 py-2">{TEAM_TARGET}</td>
+                      <td className="px-2 py-2 text-blue-600">{totalAcquired}</td>
+                      <td className="px-2 py-2 text-orange-500">{teamForecast}</td>
+                      <td className="px-2 py-2">{teamRate}%</td>
+                      <td colSpan={4}></td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             </div>
           </div>
         )}
 
-        {tab === 'overall' && (
+        {/* ===== 契約宅タブ ===== */}
+        {tab==='contracts' && (
           <div className="space-y-4">
-            <div className="bg-gray-900 text-white rounded-xl p-4">
-              <div className="text-xs text-gray-400 mb-1">今月獲得件数</div>
-              <div className="text-3xl font-bold text-blue-400">{totalAcquired}</div>
-              <div className="text-xs text-gray-400">目標 {TEAM_TARGET}件</div>
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+              <div className="font-bold text-red-700 mb-1">📞 工事日電話が必要</div>
+              <div className="text-xs text-red-500 mb-3">獲得日から3日以上経過のお客様</div>
+              {reports.filter(r=>r.name===user?.name && Number(r.acquired)>0 && Math.floor((Date.now()-new Date(r.date).getTime())/86400000)>=3).map((r,i)=>(
+                <div key={i} className="bg-white rounded-lg p-3 mb-2 border border-red-100">
+                  <div className="font-bold text-sm text-gray-900">{r.acquiredCase||'案件詳細なし'}</div>
+                  <div className="text-xs text-gray-500 mt-1">獲得: {r.date} ({Math.floor((Date.now()-new Date(r.date).getTime())/86400000)}日経過)</div>
+                </div>
+              ))}
             </div>
             <div className="bg-white rounded-xl p-4 shadow">
-              <div className="font-bold text-gray-800 mb-3">🏆 獲得件数ランキング</div>
-              {teamAcquired.map((m, i) => (
-                <div key={m.id} className="flex items-center gap-3 py-2 border-b last:border-0">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white ${i === 0 ? 'bg-yellow-500' : i === 1 ? 'bg-gray-400' : i === 2 ? 'bg-orange-600' : 'bg-blue-500'}`}>{i+1}</div>
-                  <div className="flex-1">
-                    <div className="text-sm font-bold text-gray-900">{m.name}</div>
-                    <div className="bg-gray-200 rounded-full h-2 mt-1">
-                      <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${teamAcquired[0].acquired > 0 ? m.acquired / teamAcquired[0].acquired * 100 : 0}%` }} />
-                    </div>
+              <div className="font-bold text-gray-800 mb-3">📋 全獲得案件</div>
+              {reports.filter(r=>r.name===user?.name && Number(r.acquired)>0).sort((a,b)=>new Date(b.date).getTime()-new Date(a.date).getTime()).map((r,i)=>(
+                <div key={i} className="py-3 border-b last:border-0">
+                  <div className="flex justify-between items-start">
+                    <div className="text-sm font-bold text-gray-900">{r.acquiredCase||'案件詳細なし'}</div>
+                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">手続き中</span>
                   </div>
-                  <div className="font-bold text-blue-600">{m.acquired}件</div>
+                  <div className="text-xs text-gray-500 mt-1">{r.date}</div>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {tab === 'contracts' && (
-          <div className="space-y-4">
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-              <div className="font-bold text-red-700 mb-1">📞 工事日電話が必要</div>
-              <div className="text-xs text-red-500 mb-3">獲得日から3日以上経過のお客様</div>
-              {reports
-                .filter(r => r.name === user?.name && Number(r.acquired) > 0)
-                .filter(r => Math.floor((Date.now() - new Date(r.date).getTime()) / 86400000) >= 3)
-                .map((r, i) => (
-                  <div key={i} className="bg-white rounded-lg p-3 mb-2 border border-red-100">
-                    <div className="font-bold text-sm text-gray-900">{r.acquiredCase || '案件詳細なし'}</div>
-                    <div className="text-xs text-gray-500 mt-1">獲得: {r.date} ({Math.floor((Date.now() - new Date(r.date).getTime()) / 86400000)}日経過)</div>
-                  </div>
-                ))}
-            </div>
-            <div className="bg-white rounded-xl p-4 shadow">
-              <div className="font-bold text-gray-800 mb-3">📋 全獲得案件</div>
-              {reports
-                .filter(r => r.name === user?.name && Number(r.acquired) > 0)
-                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                .map((r, i) => (
-                  <div key={i} className="py-3 border-b last:border-0">
-                    <div className="flex justify-between items-start">
-                      <div className="text-sm font-bold text-gray-900">{r.acquiredCase || '案件詳細なし'}</div>
-                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">手続き中</span>
-                    </div>
-                    <div className="text-xs text-gray-500 mt-1">獲得: {r.date}</div>
-                  </div>
-                ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
