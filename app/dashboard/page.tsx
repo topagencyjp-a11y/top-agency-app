@@ -117,7 +117,6 @@ export default function Dashboard() {
     if (form.improvements) lines.push(`■ 明日の改善ポイント\n${form.improvements}\n`);
     if (form.learnings) lines.push(`■ 学び・気づき\n${form.learnings}\n`);
     if (form.gratitude) lines.push(`■ 感謝・シェアしたいこと\n${form.gratitude}\n`);
-
     navigator.clipboard.writeText(lines.join('\n')).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -171,6 +170,14 @@ export default function Dashboard() {
   const isToday = selectedDate === new Date().toISOString().split('T')[0];
   const hasData = reports.some(r => r.date === selectedDate && r.name === user?.name);
 
+  const actionItems = [
+    { key: 'visits', label: '訪問数', color: 'bg-blue-500' },
+    { key: 'netMeet', label: '対面数', color: 'bg-purple-500' },
+    { key: 'mainMeet', label: '主権対面', color: 'bg-indigo-500' },
+    { key: 'negotiation', label: '商談', color: 'bg-orange-500' },
+    { key: 'acquired', label: '獲得数', color: 'bg-green-500' },
+  ];
+
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="bg-gray-900 text-white px-4 py-3 flex items-center justify-between">
@@ -196,7 +203,6 @@ export default function Dashboard() {
       </div>
 
       <div className="p-4 max-w-2xl mx-auto">
-
         {tab === 'input' && (
           <div className="space-y-4">
             {/* 日付選択 */}
@@ -235,21 +241,21 @@ export default function Dashboard() {
             {/* 行動量 */}
             <div className="bg-white rounded-xl p-4 shadow">
               <div className="font-bold text-gray-800 mb-3">📊 行動量</div>
-              {[
-                { key: 'visits', label: '訪問数', color: 'bg-blue-500' },
-                { key: 'netMeet', label: '対面数', color: 'bg-purple-500' },
-                { key: 'mainMeet', label: '主権対面', color: 'bg-indigo-500' },
-                { key: 'negotiation', label: '商談', color: 'bg-orange-500' },
-                { key: 'acquired', label: '獲得数', color: 'bg-green-500' },
-              ].map(item => (
-                <div key={item.key} className="flex items-center justify-between py-3 border-b last:border-0">
-                  <span className="text-sm font-medium text-gray-800">{item.label}</span>
-                  <div className="flex items-center gap-3">
+              {actionItems.map(item => (
+                <div key={item.key} className="flex items-center justify-between py-3 border-b last:border-0 gap-3">
+                  <span className="text-sm font-medium text-gray-800 w-20 shrink-0">{item.label}</span>
+                  <div className="flex items-center gap-2 ml-auto">
                     <button onClick={() => setForm({...form, [item.key]: Math.max(0, (form as any)[item.key] - 1)})}
-                      className="w-9 h-9 bg-gray-200 rounded-full text-gray-700 font-bold text-lg hover:bg-gray-300">−</button>
-                    <span className="w-8 text-center font-bold text-xl text-gray-900">{(form as any)[item.key]}</span>
+                      className="w-9 h-9 bg-gray-200 rounded-full text-gray-700 font-bold text-lg hover:bg-gray-300 shrink-0">−</button>
+                    <input
+                      type="number"
+                      min="0"
+                      value={(form as any)[item.key]}
+                      onChange={e => setForm({...form, [item.key]: Math.max(0, parseInt(e.target.value) || 0)})}
+                      className="w-16 text-center font-bold text-xl text-gray-900 border border-gray-300 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
                     <button onClick={() => setForm({...form, [item.key]: (form as any)[item.key] + 1})}
-                      className={`w-9 h-9 ${item.color} rounded-full text-white font-bold text-lg hover:opacity-90`}>＋</button>
+                      className={`w-9 h-9 ${item.color} rounded-full text-white font-bold text-lg hover:opacity-90 shrink-0`}>＋</button>
                   </div>
                 </div>
               ))}
@@ -307,9 +313,7 @@ export default function Dashboard() {
                   <div className="text-gray-500 text-sm">{thisMonth.replace('-','/')}月</div>
                 </div>
                 {myRate < 100 && forecast < myTarget && (
-                  <div className="bg-red-500 text-white text-sm font-bold px-3 py-1 rounded-full">
-                    未達予測 -{myTarget - forecast}件
-                  </div>
+                  <div className="bg-red-500 text-white text-sm font-bold px-3 py-1 rounded-full">未達予測 -{myTarget - forecast}件</div>
                 )}
               </div>
               <div className="space-y-2">
@@ -367,13 +371,7 @@ export default function Dashboard() {
             </div>
             <div className="bg-white rounded-xl p-4 shadow">
               <div className="font-bold text-gray-800 mb-3">📈 行動量合計</div>
-              {[
-                { key: 'visits', label: '訪問数' },
-                { key: 'netMeet', label: '対面数' },
-                { key: 'mainMeet', label: '主権対面' },
-                { key: 'negotiation', label: '商談' },
-                { key: 'acquired', label: '獲得数' },
-              ].map(item => {
+              {actionItems.map(item => {
                 const total = myReports.reduce((s, r) => s + (Number(r[item.key]) || 0), 0);
                 const avg = workedDays > 0 ? (total / workedDays).toFixed(1) : '0.0';
                 return (
