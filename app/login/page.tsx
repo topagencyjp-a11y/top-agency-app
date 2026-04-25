@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
@@ -8,6 +8,14 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [memberNames, setMemberNames] = useState(['プラ','岩永','橋本','高木','長谷川','中西','佐藤','小島']);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('members');
+    if (stored) {
+      try { setMemberNames(JSON.parse(stored).map((m: any) => m.name)); } catch {}
+    }
+  }, []);
 
   const handleLogin = async () => {
     setLoading(true);
@@ -47,7 +55,7 @@ export default function LoginPage() {
               className="w-full bg-gray-800 text-white rounded-2xl px-4 py-4 outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             >
               <option value="">選択してください</option>
-              {['プラ','岩永','橋本','高木','長谷川','中西','佐藤','小島'].map(n => (
+              {memberNames.map(n => (
                 <option key={n} value={n}>{n}</option>
               ))}
             </select>

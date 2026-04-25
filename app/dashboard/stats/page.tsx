@@ -1,7 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { MEMBERS } from '@/lib/members';
+import { MEMBERS as DEFAULT_MEMBERS } from '@/lib/members';
+import { loadMembers } from '@/lib/memberStore';
 import { getReports } from '@/lib/api';
 
 export default function StatsPage() {
@@ -10,12 +11,14 @@ export default function StatsPage() {
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMember, setSelectedMember] = useState('all');
+  const [members, setMembers] = useState(DEFAULT_MEMBERS);
   const thisMonth = new Date().toISOString().slice(0, 7);
 
   useEffect(() => {
     const u = localStorage.getItem('user');
     if (!u) { router.push('/login'); return; }
     setUser(JSON.parse(u));
+    setMembers(loadMembers());
     const stored = localStorage.getItem('reports');
     if (stored) { setReports(JSON.parse(stored)); setLoading(false); }
     loadReports();
@@ -43,7 +46,7 @@ export default function StatsPage() {
     const netMeet = mReports.reduce((s, r) => s + (Number(r.netMeet) || 0), 0);
     const mainMeet = mReports.reduce((s, r) => s + (Number(r.mainMeet) || 0), 0);
     const negotiation = mReports.reduce((s, r) => s + (Number(r.negotiation) || 0), 0);
-    const member = MEMBERS.find(m => m.name === name);
+    const member = members.find(m => m.name === name);
     const target = member?.target || 0;
     const prod = worked > 0 ? acquired / worked : 0;
     const remain = 20 - worked;
@@ -55,7 +58,7 @@ export default function StatsPage() {
     return { acquired, worked, visits, netMeet, mainMeet, negotiation, prod: prod.toFixed(2), target, remain: Math.max(remain, 0), forecast, rate, meetRate, getRate, negRate };
   };
 
-  const allStats = MEMBERS.map(m => ({ name: m.name, role: m.role, id: m.id, ...getMemberStats(m.name) }))
+  const allStats = members.map(m => ({ name: m.name, role: m.role, id: m.id, ...getMemberStats(m.name) }))
     .sort((a, b) => b.acquired - a.acquired);
 
   const totalAcquired = allStats.reduce((s, m) => s + m.acquired, 0);
@@ -63,7 +66,7 @@ export default function StatsPage() {
   const totalNetMeet = allStats.reduce((s, m) => s + m.netMeet, 0);
   const totalMainMeet = allStats.reduce((s, m) => s + m.mainMeet, 0);
   const totalNegotiation = allStats.reduce((s, m) => s + m.negotiation, 0);
-  const TEAM_TARGET = MEMBERS.reduce((s, m) => s + m.target, 0);
+  const TEAM_TARGET = members.reduce((s, m) => s + m.target, 0);
   const teamRate = Math.round(totalAcquired / TEAM_TARGET * 100);
   const teamMeetRate = totalVisits > 0 ? Math.round(totalNetMeet / totalVisits * 100) : 0;
   const teamGetRate = totalNetMeet > 0 ? Math.round(totalAcquired / totalNetMeet * 100) : 0;
@@ -140,7 +143,7 @@ export default function StatsPage() {
                   className={`px-3 py-1.5 rounded-full text-sm font-medium active:scale-95 transition-all duration-150 select-none ${selectedMember === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>
                   全員
                 </button>
-                {MEMBERS.map(m => (
+                {members.map(m => (
                   <button key={m.id} onClick={() => setSelectedMember(m.name)}
                     className={`px-3 py-1.5 rounded-full text-sm font-medium active:scale-95 transition-all duration-150 select-none ${selectedMember === m.name ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>
                     {m.name}

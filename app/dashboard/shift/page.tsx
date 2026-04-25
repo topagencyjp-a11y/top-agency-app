@@ -1,7 +1,8 @@
 'use client';
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { MEMBERS } from '@/lib/members';
+import { MEMBERS as DEFAULT_MEMBERS } from '@/lib/members';
+import { loadMembers } from '@/lib/memberStore';
 import { getShifts, saveShift } from '@/lib/api';
 
 type ShiftStatus = '稼働' | '休日' | '';
@@ -15,6 +16,7 @@ function ShiftContent() {
   );
   const [shifts, setShifts] = useState<Record<string, Record<string, ShiftStatus>>>({});
   const [selectedMember, setSelectedMember] = useState('');
+  const [members, setMembers] = useState(DEFAULT_MEMBERS);
   const [loading, setLoading] = useState(true);
 
   const today = new Date();
@@ -30,6 +32,7 @@ function ShiftContent() {
     if (!u) { router.push('/login'); return; }
     const parsed = JSON.parse(u);
     setUser(parsed);
+    setMembers(loadMembers());
     setSelectedMember(parsed.name);
 
     getShifts().then((data: { name: string; date: string; status: string }[]) => {
@@ -63,9 +66,9 @@ function ShiftContent() {
   const getWorkedCount = (name: string) => days.filter(d => getShift(name, d)==='稼働').length;
 
   // 今日稼働中のメンバー
-  const todayWorking = MEMBERS.filter(m => getShiftByKey(m.name, todayStr)==='稼働');
-  const todayOff = MEMBERS.filter(m => getShiftByKey(m.name, todayStr)==='休日');
-  const todayUnset = MEMBERS.filter(m => getShiftByKey(m.name, todayStr)==='');
+  const todayWorking = members.filter(m => getShiftByKey(m.name, todayStr)==='稼働');
+  const todayOff = members.filter(m => getShiftByKey(m.name, todayStr)==='休日');
+  const todayUnset = members.filter(m => getShiftByKey(m.name, todayStr)==='');
 
   const myShiftCount = getWorkedCount(selectedMember);
 
@@ -142,7 +145,7 @@ function ShiftContent() {
                   <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-bold">責任者モード</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {MEMBERS.map(m => (
+                  {members.map(m => (
                     <button key={m.id} onClick={()=>setSelectedMember(m.name)}
                       className={`px-3 py-1.5 rounded-full text-sm font-medium active:scale-95 transition-all duration-150 select-none ${selectedMember===m.name?'bg-blue-600 text-white':'bg-gray-100 text-gray-700'}`}>
                       {m.name}
@@ -210,7 +213,7 @@ function ShiftContent() {
                   </tr>
                 </thead>
                 <tbody>
-                  {MEMBERS.map((m,i) => (
+                  {members.map((m,i) => (
                     <tr key={m.id} className={i%2===0?'bg-white':'bg-gray-50'}>
                       <td className="px-2 py-1 font-bold text-gray-900 sticky left-0 bg-inherit">{m.name}</td>
                       {days.map(d => {
@@ -232,7 +235,7 @@ function ShiftContent() {
                   <tr>
                     <td className="px-2 py-1 font-bold text-gray-900">人数</td>
                     {days.map(d => {
-                      const count = MEMBERS.filter(m=>getShift(m.name,d)==='稼働').length;
+                      const count = members.filter(m=>getShift(m.name,d)==='稼働').length;
                       const isTodayDay = d===today.getDate();
                       return (
                         <td key={d} className={`px-1 py-1 text-center ${isTodayDay?'bg-blue-50':''}`}>

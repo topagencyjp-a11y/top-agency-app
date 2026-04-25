@@ -1,7 +1,8 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { MEMBERS, TEAM_TARGET } from '@/lib/members';
+import { MEMBERS as DEFAULT_MEMBERS } from '@/lib/members';
+import { loadMembers } from '@/lib/memberStore';
 import { saveReport, getReports } from '@/lib/api';
 
 type Tab = 'input' | 'mine' | 'analysis' | 'team';
@@ -17,6 +18,7 @@ export default function Dashboard() {
   const [showDrawer, setShowDrawer] = useState(false);
   const [viewingMember, setViewingMember] = useState('');
   const [showMemberPicker, setShowMemberPicker] = useState(false);
+  const [members, setMembers] = useState(DEFAULT_MEMBERS);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [form, setForm] = useState({
     visits: 0, netMeet: 0, mainMeet: 0, negotiation: 0, acquired: 0,
@@ -44,6 +46,7 @@ export default function Dashboard() {
     const parsed = JSON.parse(u);
     setUser(parsed);
     setViewingMember(parsed.name);
+    setMembers(loadMembers());
     const stored = localStorage.getItem('reports');
 
     if (stored) setReports(JSON.parse(stored));
@@ -104,7 +107,7 @@ export default function Dashboard() {
   const isViewingSelf = viewTarget === user?.name;
   const myReports = reports.filter(r => r.name===viewTarget && r.date?.startsWith(thisMonth));
   const myAcquired = myReports.reduce((s,r)=>s+(Number(r.acquired)||0),0);
-  const myMember = MEMBERS.find(m=>m.name===viewTarget);
+  const myMember = members.find(m=>m.name===viewTarget);
   const myTarget = myMember?.target||0;
   const myRate = myTarget>0 ? Math.round(myAcquired/myTarget*100) : 0;
   const workedDays = myReports.filter(r=>Number(r.visits)>0).length;
@@ -113,7 +116,8 @@ export default function Dashboard() {
   const remainDays = Math.max(planDaysForView-workedDays,0);
   const forecast = Math.round(Number(productivity)*(workedDays+remainDays));
 
-  const teamStats = MEMBERS.map(m => {
+  const TEAM_TARGET = members.reduce((s,m)=>s+m.target,0);
+  const teamStats = members.map(m => {
     const mR = reports.filter(r=>r.name===m.name && r.date?.startsWith(thisMonth));
     const acquired = mR.reduce((s,r)=>s+(Number(r.acquired)||0),0);
     const worked = mR.filter(r=>Number(r.visits)>0).length;
@@ -165,11 +169,10 @@ export default function Dashboard() {
 
   const drawerMenus = [
     {label:'📅 シフト提出',     path:'/dashboard/shift?view=submit'},
+    {label:'✅ シフト提出確認', path:'/dashboard/shift?view=confirm'},
     {label:'📊 日別稼働',       path:'/dashboard/stats'},
     {label:'📝 日報管理',       path:'/dashboard/reports'},
-    {label:'✅ シフト提出確認', path:'/dashboard/shift?view=confirm'},
     {label:'⚙️ 設定',           path:'/dashboard/settings'},
-    {label:'📋 提出確認',       path:'/dashboard/reports'},
   ];
 
   return (
@@ -198,7 +201,7 @@ export default function Dashboard() {
       {/* 責任者：メンバー選択ドロップダウン */}
       {showMemberPicker && user?.isManager && (
         <div className="bg-gray-800 border-b border-gray-700 px-4 py-3 flex flex-wrap gap-2">
-          {MEMBERS.map(m=>(
+          {members.map(m=>(
             <button key={m.id}
               onClick={()=>{ setViewingMember(m.name); setShowMemberPicker(false); setTab('mine'); }}
               className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all active:scale-95 select-none ${viewTarget===m.name?'bg-blue-600 text-white':'bg-gray-700 text-gray-300'}`}>

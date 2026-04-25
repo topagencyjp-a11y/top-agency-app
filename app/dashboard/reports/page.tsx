@@ -1,7 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { MEMBERS } from '@/lib/members';
+import { MEMBERS as DEFAULT_MEMBERS } from '@/lib/members';
+import { loadMembers } from '@/lib/memberStore';
 import { getReports } from '@/lib/api';
 
 export default function ReportsPage() {
@@ -12,6 +13,7 @@ export default function ReportsPage() {
   const [selectedMember, setSelectedMember] = useState('all');
   const [expandedReport, setExpandedReport] = useState<number | null>(null);
   const [copied, setCopied] = useState<number | null>(null);
+  const [members, setMembers] = useState(DEFAULT_MEMBERS);
   const thisMonth = new Date().toISOString().slice(0, 7);
 
   useEffect(() => {
@@ -20,6 +22,7 @@ export default function ReportsPage() {
     const parsed = JSON.parse(u);
     setUser(parsed);
     setSelectedMember(parsed.name);
+    setMembers(loadMembers());
     const stored = localStorage.getItem('reports');
     if (stored) { setReports(JSON.parse(stored)); setLoading(false); }
     loadReports();
@@ -101,7 +104,7 @@ export default function ReportsPage() {
               className={`px-3 py-1.5 rounded-full text-sm font-medium active:scale-95 transition-all duration-150 select-none ${selectedMember === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>
               全員
             </button>
-            {MEMBERS.map(m => (
+            {members.map(m => (
               <button key={m.id} onClick={() => setSelectedMember(m.name)}
                 className={`px-3 py-1.5 rounded-full text-sm font-medium active:scale-95 transition-all duration-150 select-none ${selectedMember === m.name ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>
                 {m.name}
