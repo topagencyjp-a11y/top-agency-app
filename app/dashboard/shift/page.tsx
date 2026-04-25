@@ -18,6 +18,9 @@ function ShiftContent() {
   const [selectedMember, setSelectedMember] = useState('');
   const [members, setMembers] = useState(DEFAULT_MEMBERS);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [savedMsg, setSavedMsg] = useState('');
   const [lastUpdated, setLastUpdated] = useState<Date|null>(null);
   const initialLoadDone = useRef(false);
 
@@ -79,7 +82,19 @@ function ShiftContent() {
     const newShifts = { ...shifts, [name]: { ...shifts[name], [key]: next } };
     setShifts(newShifts);
     localStorage.setItem('shifts', JSON.stringify(newShifts));
-    saveShift(name, key, next);
+    setHasChanges(true);
+  };
+
+  const handleSaveShifts = async () => {
+    setSaving(true);
+    const memberShifts = shifts[selectedMember] || {};
+    await Promise.all(
+      Object.entries(memberShifts).map(([date, status]) => saveShift(selectedMember, date, status))
+    );
+    setSaving(false);
+    setHasChanges(false);
+    setSavedMsg('保存しました');
+    setTimeout(() => setSavedMsg(''), 2000);
   };
 
   const getShift = (name: string, day: number): ShiftStatus => {
@@ -105,6 +120,8 @@ function ShiftContent() {
         <div className="font-bold text-blue-400">シフト管理</div>
         <span className="text-sm bg-gray-700 px-2 py-1 rounded-lg">{year}/{String(month+1).padStart(2,'0')}</span>
         <div className="ml-auto flex items-center gap-2">
+          {savedMsg && <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full">{savedMsg}</span>}
+          {hasChanges && !savedMsg && <span className="text-xs bg-orange-500 text-white px-2 py-0.5 rounded-full">未保存</span>}
           {lastUpdated && <span className="text-xs text-gray-500">{lastUpdated.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</span>}
           <button onClick={syncShifts} className="text-xs text-gray-400 active:opacity-60 transition-opacity select-none">🔄</button>
         </div>
@@ -191,7 +208,7 @@ function ShiftContent() {
                   <div className="font-bold text-gray-800">{selectedMember}のシフト</div>
                   <div className="text-sm font-bold text-blue-600">稼働予定: {myShiftCount}日</div>
                 </div>
-                <div className="text-xs text-gray-500 mb-3">タップで 未設定 → 稼働 → 休日 と切り替わります</div>
+                <div className="text-xs text-gray-500 mb-3">タップで 未設定 → 稼働 → 休日 と切り替わります。選び終わったら下の「保存する」を押してください。</div>
                 <div className="grid grid-cols-7 gap-1">
                   {weekDays.map(d => (
                     <div key={d} className={`text-center text-xs font-bold py-1 ${d==='日'?'text-red-500':d==='土'?'text-blue-500':'text-gray-500'}`}>{d}</div>
@@ -219,6 +236,12 @@ function ShiftContent() {
                     );
                   })}
                 </div>
+                <button
+                  onClick={handleSaveShifts}
+                  disabled={saving || !hasChanges}
+                  className="mt-4 w-full bg-blue-600 text-white font-bold py-3.5 rounded-2xl text-sm active:scale-95 transition-all duration-150 select-none disabled:opacity-40">
+                  {saving ? '保存中...' : hasChanges ? '💾 一括保存する' : '✅ 保存済み'}
+                </button>
               </div>
             )}
           </>
