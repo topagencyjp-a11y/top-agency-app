@@ -23,6 +23,7 @@ function ShiftContent() {
   const [savedMsg, setSavedMsg] = useState('');
   const [lastUpdated, setLastUpdated] = useState<Date|null>(null);
   const initialLoadDone = useRef(false);
+  const hasChangesRef = useRef(false);
 
   const today = new Date();
   const year = today.getFullYear();
@@ -33,6 +34,7 @@ function ShiftContent() {
   const weekDays = ['日','月','火','水','木','金','土'];
 
   const syncShifts = async () => {
+    if (hasChangesRef.current) return; // 未保存の変更がある間は上書きしない
     const data = await getShifts();
     if (data.length > 0) {
       const map: Record<string, Record<string, ShiftStatus>> = {};
@@ -83,6 +85,7 @@ function ShiftContent() {
     setShifts(newShifts);
     localStorage.setItem('shifts', JSON.stringify(newShifts));
     setHasChanges(true);
+    hasChangesRef.current = true;
   };
 
   const handleSaveShifts = async () => {
@@ -93,6 +96,7 @@ function ShiftContent() {
     );
     setSaving(false);
     setHasChanges(false);
+    hasChangesRef.current = false;
     setSavedMsg('保存しました');
     setTimeout(() => setSavedMsg(''), 2000);
   };
