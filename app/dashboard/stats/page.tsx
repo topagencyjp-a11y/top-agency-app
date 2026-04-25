@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { MEMBERS as DEFAULT_MEMBERS } from '@/lib/members';
 import { loadMembers } from '@/lib/memberStore';
@@ -12,6 +12,8 @@ export default function StatsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedMember, setSelectedMember] = useState('all');
   const [members, setMembers] = useState(DEFAULT_MEMBERS);
+  const [lastUpdated, setLastUpdated] = useState<Date|null>(null);
+  const initialLoadDone = useRef(false);
   const thisMonth = new Date().toISOString().slice(0, 7);
 
   useEffect(() => {
@@ -20,12 +22,17 @@ export default function StatsPage() {
     setUser(JSON.parse(u));
     setMembers(loadMembers());
     const stored = localStorage.getItem('reports');
-    if (stored) { setReports(JSON.parse(stored)); setLoading(false); }
+    if (stored) { setReports(JSON.parse(stored)); setLoading(false); initialLoadDone.current = true; }
     loadReports();
+
+    const interval = setInterval(loadReports, 20000);
+    const onVisible = () => { if (document.visibilityState === 'visible') loadReports(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onVisible); };
   }, []);
 
   const loadReports = async () => {
-    setLoading(true);
+    if (!initialLoadDone.current) setLoading(true);
     try {
       const data = await getReports();
       setReports(data);
@@ -35,6 +42,8 @@ export default function StatsPage() {
       if (stored) setReports(JSON.parse(stored));
     } finally {
       setLoading(false);
+      initialLoadDone.current = true;
+      setLastUpdated(new Date());
     }
   };
 
@@ -81,7 +90,10 @@ export default function StatsPage() {
           <div className="font-bold text-blue-400">数値管理</div>
           <span className="text-sm bg-gray-700 px-2 py-1 rounded-lg">{thisMonth.replace('-', '/')}</span>
         </div>
-        <button onClick={loadReports} className="text-xs text-gray-400 active:opacity-60 transition-opacity select-none">🔄 更新</button>
+        <div className="flex items-center gap-2">
+          {lastUpdated && <span className="text-xs text-gray-500">{lastUpdated.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</span>}
+          <button onClick={loadReports} className="text-xs text-gray-400 active:opacity-60 transition-opacity select-none">🔄</button>
+        </div>
       </div>
 
       <div className="p-4 max-w-3xl mx-auto space-y-4 page-animate">

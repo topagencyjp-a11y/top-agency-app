@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { MEMBERS as DEFAULT_MEMBERS } from '@/lib/members';
 import { loadMembers } from '@/lib/memberStore';
@@ -18,6 +18,8 @@ function ShiftContent() {
   const [selectedMember, setSelectedMember] = useState('');
   const [members, setMembers] = useState(DEFAULT_MEMBERS);
   const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date|null>(null);
+  const initialLoadDone = useRef(false);
 
   const today = new Date();
   const year = today.getFullYear();
@@ -26,6 +28,22 @@ function ShiftContent() {
   const daysInMonth = new Date(year, month+1, 0).getDate();
   const days = Array.from({length: daysInMonth}, (_,i) => i+1);
   const weekDays = ['日','月','火','水','木','金','土'];
+
+  const syncShifts = async () => {
+    const data = await getShifts();
+    if (data.length > 0) {
+      const map: Record<string, Record<string, ShiftStatus>> = {};
+      for (const s of data) {
+        if (!map[s.name]) map[s.name] = {};
+        map[s.name][s.date] = s.status as ShiftStatus;
+      }
+      setShifts(map);
+      localStorage.setItem('shifts', JSON.stringify(map));
+    }
+    setLoading(false);
+    initialLoadDone.current = true;
+    setLastUpdated(new Date());
+  };
 
   useEffect(() => {
     const u = localStorage.getItem('user');
@@ -38,22 +56,15 @@ function ShiftContent() {
     // localStorageから即時復元
     const cached = localStorage.getItem('shifts');
     if (cached) {
-      try { setShifts(JSON.parse(cached)); setLoading(false); } catch {}
+      try { setShifts(JSON.parse(cached)); setLoading(false); initialLoadDone.current = true; } catch {}
     }
 
-    // GASから最新データを取得（取得できた場合のみ上書き）
-    getShifts().then((data: { name: string; date: string; status: string }[]) => {
-      if (data.length > 0) {
-        const map: Record<string, Record<string, ShiftStatus>> = {};
-        for (const s of data) {
-          if (!map[s.name]) map[s.name] = {};
-          map[s.name][s.date] = s.status as ShiftStatus;
-        }
-        setShifts(map);
-        localStorage.setItem('shifts', JSON.stringify(map));
-      }
-      setLoading(false);
-    });
+    syncShifts();
+
+    const interval = setInterval(syncShifts, 20000);
+    const onVisible = () => { if (document.visibilityState === 'visible') syncShifts(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onVisible); };
   }, []);
 
   const getDay = (day: number) => new Date(year, month, day).getDay();
@@ -87,9 +98,13 @@ function ShiftContent() {
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="bg-gray-900 text-white px-4 py-3 flex items-center gap-3">
-        <button onClick={()=>router.push('/dashboard')} className="text-gray-400 hover:text-white text-sm">← 戻る</button>
+        <button onClick={()=>router.push('/dashboard')} className="text-gray-400 text-sm active:opacity-60 transition-opacity select-none">← 戻る</button>
         <div className="font-bold text-blue-400">シフト管理</div>
-        <span className="text-sm bg-gray-700 px-2 py-1 rounded">{year}/{String(month+1).padStart(2,'0')}</span>
+        <span className="text-sm bg-gray-700 px-2 py-1 rounded-lg">{year}/{String(month+1).padStart(2,'0')}</span>
+        <div className="ml-auto flex items-center gap-2">
+          {lastUpdated && <span className="text-xs text-gray-500">{lastUpdated.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</span>}
+          <button onClick={syncShifts} className="text-xs text-gray-400 active:opacity-60 transition-opacity select-none">🔄</button>
+        </div>
       </div>
 
       <div className="bg-gray-900 flex border-b border-gray-700">

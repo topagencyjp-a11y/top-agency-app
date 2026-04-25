@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { MEMBERS as DEFAULT_MEMBERS } from '@/lib/members';
 import { loadMembers } from '@/lib/memberStore';
@@ -19,6 +19,8 @@ export default function Dashboard() {
   const [viewingMember, setViewingMember] = useState('');
   const [showMemberPicker, setShowMemberPicker] = useState(false);
   const [members, setMembers] = useState(DEFAULT_MEMBERS);
+  const [lastUpdated, setLastUpdated] = useState<Date|null>(null);
+  const initialLoadDone = useRef(false);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [form, setForm] = useState({
     visits: 0, netMeet: 0, mainMeet: 0, negotiation: 0, acquired: 0,
@@ -29,7 +31,7 @@ export default function Dashboard() {
   });
 
   const loadReports = useCallback(async () => {
-    setLoading(true);
+    if (!initialLoadDone.current) setLoading(true);
     try {
       const data = await getReports();
       setReports(data);
@@ -37,7 +39,11 @@ export default function Dashboard() {
     } catch {
       const stored = localStorage.getItem('reports');
       if (stored) setReports(JSON.parse(stored));
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+      initialLoadDone.current = true;
+      setLastUpdated(new Date());
+    }
   }, []);
 
   useEffect(() => {
@@ -49,9 +55,14 @@ export default function Dashboard() {
     setMembers(loadMembers());
     const stored = localStorage.getItem('reports');
 
-    if (stored) setReports(JSON.parse(stored));
+    if (stored) { setReports(JSON.parse(stored)); initialLoadDone.current = true; }
     loadReports();
-  }, []);
+
+    const interval = setInterval(loadReports, 20000);
+    const onVisible = () => { if (document.visibilityState === 'visible') loadReports(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onVisible); };
+  }, [loadReports]);
 
   useEffect(() => {
     if (!user) return;
@@ -203,7 +214,10 @@ export default function Dashboard() {
           )}
         </div>
         <div className="flex items-center gap-3">
-          {loading && <span className="text-xs text-gray-400">同期中...</span>}
+          {loading
+            ? <span className="text-xs text-gray-400 animate-pulse">同期中...</span>
+            : lastUpdated && <span className="text-xs text-gray-500">{lastUpdated.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</span>
+          }
           <button onClick={()=>{localStorage.clear();router.push('/login');}} className="text-gray-400 text-sm hover:text-white">ログアウト</button>
         </div>
       </div>
