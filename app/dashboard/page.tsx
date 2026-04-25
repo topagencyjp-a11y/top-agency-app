@@ -194,7 +194,7 @@ export default function Dashboard() {
   const drawerMenus = [
     {label:'📅 シフト提出',     path:'/dashboard/shift?view=submit'},
     {label:'✅ シフト提出確認', path:'/dashboard/shift?view=confirm'},
-    {label:'📊 日別稼働',       path:'/dashboard/stats'},
+    {label:'📊 日別稼働',       path:'/dashboard/daily'},
     {label:'📝 日報管理',       path:'/dashboard/reports'},
     {label:'⚙️ 設定',           path:'/dashboard/settings'},
   ];
