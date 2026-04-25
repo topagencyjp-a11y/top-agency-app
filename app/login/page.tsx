@@ -48,10 +48,9 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
       <div className="page-animate bg-gray-900 rounded-3xl p-8 w-full max-w-sm shadow-2xl">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <span className="text-white text-2xl font-black">T</span>
+          <div className="w-44 h-24 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 overflow-hidden p-3">
+            <img src="/logo.png" alt="TOP Agency" className="w-full h-full object-contain" />
           </div>
-          <div className="text-2xl font-black text-white mb-1">TOP Agency</div>
           <div className="text-gray-400 text-sm">Sales Management</div>
         </div>
         <div className="space-y-4">

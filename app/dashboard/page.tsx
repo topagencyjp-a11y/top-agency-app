@@ -203,7 +203,9 @@ export default function Dashboard() {
     <div className="min-h-screen bg-gray-100">
       <div className="bg-gray-900 text-white px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="font-bold text-blue-400 text-lg">TOP</div>
+          <div className="h-8 bg-white rounded-lg overflow-hidden px-1.5 py-0.5">
+            <img src="/logo.png" alt="TOP" className="h-full w-auto object-contain" />
+          </div>
           <span className="text-sm bg-gray-700 px-2 py-1 rounded">{thisMonth.replace('-','/')}</span>
           {user && (
             user?.isManager ? (
