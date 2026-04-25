@@ -90,11 +90,13 @@ export default function Dashboard() {
         area7: existing.area7||'', area8: existing.area8||'', area9: existing.area9||'',
         area10: existing.area10||'',
       });
-      setAreaQuery(existing[`area${areaTab}`] || '');
+      setAreaTab(1);
+      setAreaQuery(existing.area1 || '');
     } else {
       setForm({ visits:0,netMeet:0,mainMeet:0,negotiation:0,acquired:0,startTime:'',endTime:'',
         acquiredCase:'',lostCase:'',goodPoints:'',issues:'',improvements:'',learnings:'',gratitude:'',planDays:20,
         area1:'',area2:'',area3:'',area4:'',area5:'',area6:'',area7:'',area8:'',area9:'',area10:'' });
+      setAreaTab(1);
       setAreaQuery('');
     }
   }, [selectedDate, user, reports]);
@@ -110,7 +112,7 @@ export default function Dashboard() {
       const updated = [...reports.filter(r => !(r.date===selectedDate && r.name===user?.name)), report];
       setReports(updated);
       localStorage.setItem('reports', JSON.stringify(updated));
-      alert('保存しました！（オフライン）');
+      alert('端末に保存しました（通信エラー。Wi-Fi確認後に再保存してください）');
     } finally { setSaving(false); }
   };
 

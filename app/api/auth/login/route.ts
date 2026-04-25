@@ -15,7 +15,8 @@ export async function POST(req: NextRequest) {
   const isManagerPassword = password === MANAGER_PASSWORD;
   const hardcodedMember = MEMBERS.find(m => m.name === name);
 
-  const isManagerLogin = isManagerPassword && (hardcodedMember?.isManager ?? isManagerPassword);
+  // 責任者権限はhardcodedでisManager:trueのメンバーのみ取得可能
+  const isManagerLogin = isManagerPassword && hardcodedMember?.isManager === true;
 
   const payload = {
     id: hardcodedMember?.id ?? name,
