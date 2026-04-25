@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { MEMBERS as DEFAULT_MEMBERS } from '@/lib/members';
 import { loadMembers } from '@/lib/memberStore';
-import { getReports } from '@/lib/api';
+import { getReports, getMembersFromGAS } from '@/lib/api';
 
 export default function ReportsPage() {
   const router = useRouter();
@@ -25,6 +25,9 @@ export default function ReportsPage() {
     setUser(parsed);
     setSelectedMember(parsed.name);
     setMembers(loadMembers());
+    getMembersFromGAS().then(data => {
+      if (data.length > 0) { localStorage.setItem('members', JSON.stringify(data)); setMembers(data); }
+    });
     const stored = localStorage.getItem('reports');
     if (stored) { setReports(JSON.parse(stored)); setLoading(false); initialLoadDone.current = true; }
     loadReports();

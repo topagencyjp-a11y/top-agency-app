@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { MEMBERS as DEFAULT_MEMBERS } from '@/lib/members';
 import { loadMembers } from '@/lib/memberStore';
-import { saveReport, getReports } from '@/lib/api';
+import { saveReport, getReports, getMembersFromGAS } from '@/lib/api';
 
 type Tab = 'input' | 'mine' | 'analysis' | 'team';
 
@@ -53,6 +53,9 @@ export default function Dashboard() {
     setUser(parsed);
     setViewingMember(parsed.name);
     setMembers(loadMembers());
+    getMembersFromGAS().then(data => {
+      if (data.length > 0) { localStorage.setItem('members', JSON.stringify(data)); setMembers(data); }
+    });
     const stored = localStorage.getItem('reports');
 
     if (stored) { setReports(JSON.parse(stored)); initialLoadDone.current = true; }

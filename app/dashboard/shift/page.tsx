@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { MEMBERS as DEFAULT_MEMBERS } from '@/lib/members';
 import { loadMembers } from '@/lib/memberStore';
-import { getShifts, saveShift } from '@/lib/api';
+import { getShifts, saveShift, getMembersFromGAS } from '@/lib/api';
 
 type ShiftStatus = '稼働' | '休日' | '';
 
@@ -51,6 +51,9 @@ function ShiftContent() {
     const parsed = JSON.parse(u);
     setUser(parsed);
     setMembers(loadMembers());
+    getMembersFromGAS().then(data => {
+      if (data.length > 0) { localStorage.setItem('members', JSON.stringify(data)); setMembers(data); }
+    });
     setSelectedMember(parsed.name);
 
     // localStorageから即時復元

@@ -15,6 +15,14 @@ export default function LoginPage() {
     if (stored) {
       try { setMemberNames(JSON.parse(stored).map((m: any) => m.name)); } catch {}
     }
+    import('@/lib/api').then(({ getMembersFromGAS }) => {
+      getMembersFromGAS().then(data => {
+        if (data.length > 0) {
+          localStorage.setItem('members', JSON.stringify(data));
+          setMemberNames(data.map((m: any) => m.name));
+        }
+      });
+    });
   }, []);
 
   const handleLogin = async () => {

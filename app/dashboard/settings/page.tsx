@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { MEMBERS as DEFAULT_MEMBERS, Member } from '@/lib/members';
 import { loadMembers, saveMembers } from '@/lib/memberStore';
+import { getMembersFromGAS, saveMembersToGAS } from '@/lib/api';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -21,6 +22,12 @@ export default function SettingsPage() {
     setUser(parsed);
     if (!parsed.isManager) { router.push('/dashboard'); return; }
     setMembers(loadMembers());
+    getMembersFromGAS().then(data => {
+      if (data.length > 0) {
+        localStorage.setItem('members', JSON.stringify(data));
+        setMembers(data);
+      }
+    });
   }, []);
 
   const flash = (msg = '保存しました') => {
@@ -38,6 +45,7 @@ export default function SettingsPage() {
     const updated = members.map(m => m.id === editingId ? { ...m, ...editForm } : m);
     setMembers(updated);
     saveMembers(updated);
+    saveMembersToGAS(updated);
     setEditingId(null);
     flash();
   };
@@ -47,6 +55,7 @@ export default function SettingsPage() {
     const updated = members.filter(m => m.id !== id);
     setMembers(updated);
     saveMembers(updated);
+    saveMembersToGAS(updated);
     flash('削除しました');
   };
 
@@ -62,6 +71,7 @@ export default function SettingsPage() {
     const updated = [...members, newMember];
     setMembers(updated);
     saveMembers(updated);
+    saveMembersToGAS(updated);
     setShowAdd(false);
     setAddForm({ name: '', role: 'closer', target: 15, isManager: false });
     flash('追加しました');
@@ -218,7 +228,8 @@ export default function SettingsPage() {
           <div className="text-xs text-gray-400 mb-3">メンバーリストを初期状態（8名）にリセットします</div>
           <button onClick={() => {
             if (confirm('メンバーリストをデフォルトに戻しますか？')) {
-              localStorage.removeItem('members');
+              saveMembers(DEFAULT_MEMBERS);
+              saveMembersToGAS(DEFAULT_MEMBERS);
               setMembers(DEFAULT_MEMBERS);
               flash('リセットしました');
             }

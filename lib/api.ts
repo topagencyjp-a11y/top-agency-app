@@ -42,3 +42,24 @@ export async function getShifts() {
     return [];
   }
 }
+
+export async function getMembersFromGAS() {
+  try {
+    const res = await fetch(`${GAS_URL}?action=getMembers`);
+    const data = await res.json();
+    return data.members || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function saveMembersToGAS(members: any[]) {
+  try {
+    await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'saveMembers', members }),
+    });
+  } catch (e) {
+    console.error(e);
+  }
+}
