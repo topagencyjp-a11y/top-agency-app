@@ -35,13 +35,23 @@ function ShiftContent() {
     setMembers(loadMembers());
     setSelectedMember(parsed.name);
 
+    // localStorageから即時復元
+    const cached = localStorage.getItem('shifts');
+    if (cached) {
+      try { setShifts(JSON.parse(cached)); setLoading(false); } catch {}
+    }
+
+    // GASから最新データを取得（取得できた場合のみ上書き）
     getShifts().then((data: { name: string; date: string; status: string }[]) => {
-      const map: Record<string, Record<string, ShiftStatus>> = {};
-      for (const s of data) {
-        if (!map[s.name]) map[s.name] = {};
-        map[s.name][s.date] = s.status as ShiftStatus;
+      if (data.length > 0) {
+        const map: Record<string, Record<string, ShiftStatus>> = {};
+        for (const s of data) {
+          if (!map[s.name]) map[s.name] = {};
+          map[s.name][s.date] = s.status as ShiftStatus;
+        }
+        setShifts(map);
+        localStorage.setItem('shifts', JSON.stringify(map));
       }
-      setShifts(map);
       setLoading(false);
     });
   }, []);
@@ -52,7 +62,9 @@ function ShiftContent() {
     const key = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
     const current = shifts[name]?.[key] || '';
     const next: ShiftStatus = current==='' ? '稼働' : current==='稼働' ? '休日' : '';
-    setShifts(prev => ({ ...prev, [name]: { ...prev[name], [key]: next } }));
+    const newShifts = { ...shifts, [name]: { ...shifts[name], [key]: next } };
+    setShifts(newShifts);
+    localStorage.setItem('shifts', JSON.stringify(newShifts));
     saveShift(name, key, next);
   };
 
