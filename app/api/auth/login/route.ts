@@ -7,20 +7,20 @@ const MANAGER_PASSWORD = 'topMgr2024!';
 
 export async function POST(req: NextRequest) {
   const { name, password } = await req.json();
-  const member = MEMBERS.find(m => m.name === name);
-  if (!member) return NextResponse.json({ success: false });
 
-  const isManagerLogin = member.isManager && password === MANAGER_PASSWORD;
-  const isMemberLogin = password === MEMBER_PASSWORD;
-
-  if (!isManagerLogin && !isMemberLogin) {
+  if (!name || (password !== MEMBER_PASSWORD && password !== MANAGER_PASSWORD)) {
     return NextResponse.json({ success: false });
   }
 
+  const isManagerPassword = password === MANAGER_PASSWORD;
+  const hardcodedMember = MEMBERS.find(m => m.name === name);
+
+  const isManagerLogin = isManagerPassword && (hardcodedMember?.isManager ?? isManagerPassword);
+
   const payload = {
-    id: member.id,
-    name: member.name,
-    role: member.role,
+    id: hardcodedMember?.id ?? name,
+    name,
+    role: hardcodedMember?.role ?? 'closer',
     isManager: isManagerLogin,
   };
   const token = createToken(payload);
