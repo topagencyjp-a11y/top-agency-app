@@ -20,6 +20,8 @@ export default function ReportsPage() {
     const parsed = JSON.parse(u);
     setUser(parsed);
     setSelectedMember(parsed.name);
+    const stored = localStorage.getItem('reports');
+    if (stored) { setReports(JSON.parse(stored)); setLoading(false); }
     loadReports();
   }, []);
 
@@ -84,24 +86,24 @@ export default function ReportsPage() {
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="bg-gray-900 text-white px-4 py-3 flex items-center gap-3">
-        <button onClick={() => router.push('/dashboard')} className="text-gray-400 hover:text-white text-sm">← 戻る</button>
+        <button onClick={() => router.push('/dashboard')} className="text-gray-400 text-sm active:opacity-60 transition-opacity select-none">← 戻る</button>
         <div className="font-bold text-blue-400">日報管理</div>
-        <span className="text-sm bg-gray-700 px-2 py-1 rounded">{thisMonth.replace('-', '/')}</span>
-        <button onClick={loadReports} className="ml-auto text-xs text-gray-400 hover:text-white">🔄 更新</button>
+        <span className="text-sm bg-gray-700 px-2 py-1 rounded-lg">{thisMonth.replace('-', '/')}</span>
+        <button onClick={loadReports} className="ml-auto text-xs text-gray-400 active:opacity-60 transition-opacity select-none">🔄 更新</button>
       </div>
 
-      <div className="p-4 max-w-2xl mx-auto space-y-4">
+      <div className="p-4 max-w-2xl mx-auto space-y-4 page-animate">
 
         {/* メンバー選択 */}
-        <div className="bg-white rounded-xl p-4 shadow">
+        <div className="bg-white rounded-2xl p-4 shadow-sm">
           <div className="flex flex-wrap gap-2">
             <button onClick={() => setSelectedMember('all')}
-              className={`px-3 py-1 rounded-full text-sm font-medium ${selectedMember === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>
+              className={`px-3 py-1.5 rounded-full text-sm font-medium active:scale-95 transition-all duration-150 select-none ${selectedMember === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>
               全員
             </button>
             {MEMBERS.map(m => (
               <button key={m.id} onClick={() => setSelectedMember(m.name)}
-                className={`px-3 py-1 rounded-full text-sm font-medium ${selectedMember === m.name ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>
+                className={`px-3 py-1.5 rounded-full text-sm font-medium active:scale-95 transition-all duration-150 select-none ${selectedMember === m.name ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>
                 {m.name}
               </button>
             ))}
@@ -109,22 +111,24 @@ export default function ReportsPage() {
         </div>
 
         {loading ? (
-          <div className="text-center py-8 text-gray-400">読み込み中...</div>
+          <div className="space-y-3">
+            {[...Array(3)].map((_,i) => <div key={i} className="skeleton h-28 rounded-2xl"/>)}
+          </div>
         ) : filtered.length === 0 ? (
-          <div className="bg-white rounded-xl p-8 shadow text-center text-gray-400">
+          <div className="bg-white rounded-2xl p-8 shadow-sm text-center text-gray-400">
             日報がありません
           </div>
         ) : (
           <>
-            <div className="text-xs text-gray-500 font-medium">{filtered.length}件の日報</div>
+            <div className="text-xs text-gray-500 font-medium px-1">{filtered.length}件の日報</div>
             {filtered.map((r, i) => (
-              <div key={i} className="bg-white rounded-xl shadow overflow-hidden">
+              <div key={i} className="bg-white rounded-2xl shadow-sm overflow-hidden">
                 {/* ヘッダー */}
-                <div className="p-4 cursor-pointer hover:bg-gray-50"
+                <div className="p-4 active:bg-gray-50 transition-colors cursor-pointer"
                   onClick={() => setExpandedReport(expandedReport === i ? null : i)}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0">
+                      <div className="w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-bold text-sm shrink-0">
                         {r.name?.[0]}
                       </div>
                       <div>
@@ -144,13 +148,13 @@ export default function ReportsPage() {
                   {/* 行動量バー */}
                   <div className="mt-3 grid grid-cols-5 gap-1 text-center">
                     {[
-                      { label: '訪問', val: r.visits, color: 'bg-blue-100 text-blue-700' },
-                      { label: '対面', val: r.netMeet, color: 'bg-purple-100 text-purple-700' },
-                      { label: '主権', val: r.mainMeet, color: 'bg-indigo-100 text-indigo-700' },
-                      { label: '商談', val: r.negotiation, color: 'bg-orange-100 text-orange-700' },
-                      { label: '獲得', val: r.acquired, color: 'bg-green-100 text-green-700' },
+                      { label: '訪問', val: r.visits, color: 'bg-blue-50 text-blue-700' },
+                      { label: '対面', val: r.netMeet, color: 'bg-purple-50 text-purple-700' },
+                      { label: '主権', val: r.mainMeet, color: 'bg-indigo-50 text-indigo-700' },
+                      { label: '商談', val: r.negotiation, color: 'bg-orange-50 text-orange-700' },
+                      { label: '獲得', val: r.acquired, color: 'bg-green-50 text-green-700' },
                     ].map(item => (
-                      <div key={item.label} className={`${item.color} rounded-lg py-1`}>
+                      <div key={item.label} className={`${item.color} rounded-xl py-1.5`}>
                         <div className="text-xs">{item.label}</div>
                         <div className="font-bold text-sm">{Number(item.val) || 0}</div>
                       </div>
@@ -174,7 +178,7 @@ export default function ReportsPage() {
                     </div>
                     <div className="px-4 pb-4">
                       <button onClick={() => copyReport(r, i)}
-                        className="w-full border border-blue-600 text-blue-600 font-bold py-2 rounded-lg text-sm hover:bg-blue-50">
+                        className="w-full border border-blue-600 text-blue-600 font-bold py-3 rounded-2xl text-sm active:scale-95 transition-all duration-150 select-none">
                         {copied === i ? '✅ コピーしました！' : '📋 この日報をコピー'}
                       </button>
                     </div>

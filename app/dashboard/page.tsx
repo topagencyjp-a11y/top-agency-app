@@ -201,7 +201,7 @@ export default function Dashboard() {
           {MEMBERS.map(m=>(
             <button key={m.id}
               onClick={()=>{ setViewingMember(m.name); setShowMemberPicker(false); setTab('mine'); }}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold transition ${viewTarget===m.name?'bg-blue-600 text-white':'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}>
+              className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all active:scale-95 select-none ${viewTarget===m.name?'bg-blue-600 text-white':'bg-gray-700 text-gray-300'}`}>
               {m.name}
             </button>
           ))}
@@ -212,7 +212,7 @@ export default function Dashboard() {
         <div className="flex overflow-x-auto flex-1">
           {tabs.map(t=>(
             <button key={t.id} onClick={()=>setTab(t.id as Tab)}
-              className={`px-4 py-3 text-sm whitespace-nowrap transition ${tab===t.id?'bg-blue-600 text-white':'text-gray-400 hover:text-white'}`}>
+              className={`px-4 py-3 text-sm whitespace-nowrap transition-all select-none active:opacity-70 ${tab===t.id?'bg-blue-600 text-white':'text-gray-400'}`}>
               {t.label}
             </button>
           ))}
@@ -226,10 +226,10 @@ export default function Dashboard() {
 
         {/* ===== 入力タブ ===== */}
         {tab==='input' && (
-          <div className="space-y-4">
-            <div className="bg-white rounded-xl p-4 shadow">
+          <div className="space-y-4 tab-animate">
+            <div className="bg-white rounded-2xl p-4 shadow-sm">
               <div className="flex items-center justify-between">
-                <button onClick={()=>changeDate(-1)} className="w-9 h-9 bg-gray-100 rounded-full text-gray-600 font-bold hover:bg-gray-200">‹</button>
+                <button onClick={()=>changeDate(-1)} className="w-11 h-11 bg-gray-100 rounded-full text-gray-600 font-bold active:scale-90 transition-all duration-150 select-none">‹</button>
                 <div className="text-center">
                   <div className="flex items-center gap-2 justify-center">
                     <span className="font-bold text-gray-900 text-lg">{formatDate(selectedDate)}</span>
@@ -238,11 +238,11 @@ export default function Dashboard() {
                   </div>
                   <input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)} className="text-xs text-gray-400 mt-1 border-0 bg-transparent cursor-pointer" />
                 </div>
-                <button onClick={()=>changeDate(1)} disabled={isToday} className="w-9 h-9 bg-gray-100 rounded-full text-gray-600 font-bold hover:bg-gray-200 disabled:opacity-30">›</button>
+                <button onClick={()=>changeDate(1)} disabled={isToday} className="w-11 h-11 bg-gray-100 rounded-full text-gray-600 font-bold active:scale-90 transition-all duration-150 select-none disabled:opacity-30">›</button>
               </div>
             </div>
 
-            <div className="bg-white rounded-xl p-4 shadow">
+            <div className="bg-white rounded-2xl p-4 shadow-sm">
               <div className="font-bold text-gray-800 mb-3">⏰ 稼働時間</div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="text-sm font-medium text-gray-700">開始</label><input type="time" value={form.startTime} onChange={e=>setForm({...form,startTime:e.target.value})} className={inputStyle}/></div>
@@ -250,21 +250,21 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="bg-white rounded-xl p-4 shadow">
+            <div className="bg-white rounded-2xl p-4 shadow-sm">
               <div className="font-bold text-gray-800 mb-3">📊 行動量</div>
               {actionItems.map(item=>(
                 <div key={item.key} className="flex items-center justify-between py-3 border-b last:border-0 gap-3">
                   <span className="text-sm font-medium text-gray-800 w-20 shrink-0">{item.label}</span>
                   <div className="flex items-center gap-2 ml-auto">
-                    <button onClick={()=>setForm({...form,[item.key]:Math.max(0,(form as any)[item.key]-1)})} className="w-9 h-9 bg-gray-200 rounded-full text-gray-700 font-bold text-lg hover:bg-gray-300">−</button>
-                    <input type="number" min="0" value={(form as any)[item.key]} onChange={e=>setForm({...form,[item.key]:Math.max(0,parseInt(e.target.value)||0)})} className="w-16 text-center font-bold text-xl text-gray-900 border border-gray-300 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"/>
-                    <button onClick={()=>setForm({...form,[item.key]:(form as any)[item.key]+1})} className={`w-9 h-9 ${item.color} rounded-full text-white font-bold text-lg hover:opacity-90`}>＋</button>
+                    <button onClick={()=>setForm({...form,[item.key]:Math.max(0,(form as any)[item.key]-1)})} className="w-11 h-11 bg-gray-200 rounded-full text-gray-700 font-bold text-lg active:scale-90 transition-all duration-150 select-none">−</button>
+                    <input type="number" min="0" value={(form as any)[item.key]} onChange={e=>setForm({...form,[item.key]:Math.max(0,parseInt(e.target.value)||0)})} className="w-16 text-center font-bold text-xl text-gray-900 border border-gray-300 rounded-xl py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                    <button onClick={()=>setForm({...form,[item.key]:(form as any)[item.key]+1})} className={`w-11 h-11 ${item.color} rounded-full text-white font-bold text-lg active:scale-90 transition-all duration-150 select-none`}>＋</button>
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="bg-white rounded-xl p-4 shadow">
+            <div className="bg-white rounded-2xl p-4 shadow-sm">
               <div className="font-bold text-gray-800 mb-3">📝 日報</div>
               {[
                 {key:'acquiredCase',label:'🏆 獲得案件',ph:'お客さんの属性・角度感・フックを詳しく'},
@@ -282,16 +282,16 @@ export default function Dashboard() {
               ))}
             </div>
 
-            <div className="bg-white rounded-xl p-4 shadow">
+            <div className="bg-white rounded-2xl p-4 shadow-sm">
               <div className="font-bold text-gray-800 mb-2">📅 計画稼働日数</div>
               <input type="number" value={form.planDays} onChange={e=>setForm({...form,planDays:+e.target.value})} className={inputStyle}/>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <button onClick={copyReport} className="bg-white border-2 border-blue-600 text-blue-600 font-bold py-4 rounded-xl text-sm hover:bg-blue-50">
+              <button onClick={copyReport} className="bg-white border-2 border-blue-600 text-blue-600 font-bold py-4 rounded-2xl text-sm active:scale-95 transition-all duration-150 select-none">
                 {copied?'✅ コピー済み！':'📋 日報をコピー'}
               </button>
-              <button onClick={handleSave} disabled={saving} className="bg-blue-600 text-white font-bold py-4 rounded-xl text-sm hover:bg-blue-700 disabled:opacity-50">
+              <button onClick={handleSave} disabled={saving} className="bg-blue-600 text-white font-bold py-4 rounded-2xl text-sm active:scale-95 transition-all duration-150 select-none disabled:opacity-50">
                 {saving?'保存中...':'💾 保存する'}
               </button>
             </div>
@@ -300,15 +300,15 @@ export default function Dashboard() {
 
         {/* ===== 自分タブ ===== */}
         {tab==='mine' && (
-          <div className="space-y-4">
+          <div className="space-y-4 tab-animate">
             {!isViewingSelf && user?.isManager && (
-              <div className="bg-yellow-50 border border-yellow-300 rounded-xl px-4 py-2 flex items-center justify-between">
+              <div className="bg-yellow-50 border border-yellow-300 rounded-2xl px-4 py-2 flex items-center justify-between">
                 <span className="text-sm font-bold text-yellow-700">📋 {viewTarget} の個人ページ</span>
                 <button onClick={()=>{ setViewingMember(user.name); }}
                   className="text-xs text-yellow-600 underline">自分に戻る</button>
               </div>
             )}
-            <div className="bg-white rounded-xl p-4 shadow">
+            <div className="bg-white rounded-2xl p-4 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <div className="text-xl font-bold text-gray-900">{viewTarget}</div>
@@ -333,7 +333,7 @@ export default function Dashboard() {
               ))}
             </div>
 
-            <div className="bg-white rounded-xl p-4 shadow">
+            <div className="bg-white rounded-2xl p-4 shadow-sm">
               <div className="font-bold text-gray-800 mb-3">📈 今月の行動量</div>
               {actionItems.map(item=>{
                 const total = myReports.reduce((s,r)=>s+(Number(r[item.key])||0),0);
@@ -364,10 +364,10 @@ export default function Dashboard() {
 
         {/* ===== 全体タブ ===== */}
         {tab==='team' && (
-          <div className="space-y-4">
+          <div className="space-y-4 tab-animate">
             {/* チームKPI */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-gray-900 text-white rounded-xl p-4">
+              <div className="bg-gray-900 text-white rounded-2xl p-4">
                 <div className="text-xs text-gray-400 mb-1">チーム獲得</div>
                 <div className="text-3xl font-bold text-blue-400">{totalAcquired}<span className="text-sm text-gray-400 ml-1">件</span></div>
                 <div className="text-xs text-gray-400">目標 {TEAM_TARGET}件</div>
@@ -376,7 +376,7 @@ export default function Dashboard() {
                 </div>
                 <div className="text-xs text-gray-400 mt-1">{teamRate}%</div>
               </div>
-              <div className="bg-gray-900 text-white rounded-xl p-4">
+              <div className="bg-gray-900 text-white rounded-2xl p-4">
                 <div className="text-xs text-gray-400 mb-1">チーム着地予測</div>
                 <div className={`text-3xl font-bold ${teamForecast>=TEAM_TARGET?'text-green-400':'text-orange-400'}`}>{teamForecast}<span className="text-sm ml-1 text-gray-400">件</span></div>
                 <div className="text-xs text-gray-400">目標まであと {Math.max(TEAM_TARGET-totalAcquired,0)}件</div>
@@ -388,7 +388,7 @@ export default function Dashboard() {
             </div>
 
             {/* ランキング */}
-            <div className="bg-white rounded-xl p-4 shadow">
+            <div className="bg-white rounded-2xl p-4 shadow-sm">
               <div className="font-bold text-gray-800 mb-3">🏆 獲得件数ランキング</div>
               {teamStats.map((m,i)=>{
                 const max = teamStats[0].acquired||1;
@@ -414,7 +414,7 @@ export default function Dashboard() {
             </div>
 
             {/* チーム行動量 */}
-            <div className="bg-white rounded-xl p-4 shadow">
+            <div className="bg-white rounded-2xl p-4 shadow-sm">
               <div className="font-bold text-gray-800 mb-3">📊 チーム行動量</div>
               <div className="grid grid-cols-5 gap-2 text-center">
                 {[
@@ -433,7 +433,7 @@ export default function Dashboard() {
             </div>
 
             {/* メンバー別テーブル */}
-            <div className="bg-white rounded-xl shadow overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
               <div className="font-bold text-gray-800 p-4 border-b">📋 メンバー別数値</div>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
@@ -477,8 +477,8 @@ export default function Dashboard() {
 
         {/* ===== 分析タブ ===== */}
         {tab==='analysis' && (
-          <div className="space-y-4">
-            <div className="bg-gray-900 text-white rounded-xl p-4">
+          <div className="space-y-4 tab-animate">
+            <div className="bg-gray-900 text-white rounded-2xl p-4">
               <div className="text-xs text-gray-400 mb-1">総転換率（訪問→契約）</div>
               <div className="text-4xl font-bold text-blue-400">
                 {totalVisits>0?(totalAcquired/totalVisits*100).toFixed(2):'0.00'}
@@ -486,7 +486,7 @@ export default function Dashboard() {
               </div>
               <div className="text-xs text-gray-400 mt-1">{totalVisits}訪問 → {totalAcquired}契約</div>
             </div>
-            <div className="bg-white rounded-xl p-4 shadow">
+            <div className="bg-white rounded-2xl p-4 shadow-sm">
               <div className="font-bold text-gray-800 mb-3">📊 チーム転換率ファネル</div>
               {[
                 {label:'訪問→対面', rate:teamMeetRate,  bench:30, value:totalNetMeet},
@@ -507,7 +507,7 @@ export default function Dashboard() {
                 );
               })}
             </div>
-            <div className="bg-white rounded-xl shadow overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
               <div className="font-bold text-gray-800 p-4 border-b">👥 メンバー別転換率</div>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
@@ -549,7 +549,7 @@ export default function Dashboard() {
               {drawerMenus.map(item=>(
                 <button key={item.label}
                   onClick={()=>{ router.push(item.path); setShowDrawer(false); }}
-                  className="w-full text-left px-4 py-3 text-white hover:bg-gray-800 rounded-xl text-sm font-medium">
+                  className="w-full text-left px-4 py-3 text-white active:bg-gray-700 rounded-xl text-sm font-medium transition-colors select-none">
                   {item.label}
                 </button>
               ))}

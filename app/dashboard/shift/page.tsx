@@ -91,7 +91,7 @@ function ShiftContent() {
       <div className="p-4 max-w-3xl mx-auto space-y-4">
 
         {/* 今日の稼働状況（常時表示） */}
-        <div className="bg-white rounded-xl p-4 shadow">
+        <div className="bg-white rounded-2xl p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <div className="font-bold text-gray-800">📅 今日の稼働状況</div>
             <div className="text-sm text-gray-500">{today.getMonth()+1}/{today.getDate()}（{weekDays[today.getDay()]}）</div>
@@ -136,7 +136,7 @@ function ShiftContent() {
           <>
             {/* 責任者のみ：メンバー選択 */}
             {user?.isManager && (
-              <div className="bg-white rounded-xl p-4 shadow">
+              <div className="bg-white rounded-2xl p-4 shadow-sm">
                 <div className="flex items-center gap-2 mb-3">
                   <div className="font-bold text-gray-800">メンバーを選択</div>
                   <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-bold">責任者モード</span>
@@ -144,7 +144,7 @@ function ShiftContent() {
                 <div className="flex flex-wrap gap-2">
                   {MEMBERS.map(m => (
                     <button key={m.id} onClick={()=>setSelectedMember(m.name)}
-                      className={`px-3 py-1 rounded-full text-sm font-medium ${selectedMember===m.name?'bg-blue-600 text-white':'bg-gray-100 text-gray-700'}`}>
+                      className={`px-3 py-1.5 rounded-full text-sm font-medium active:scale-95 transition-all duration-150 select-none ${selectedMember===m.name?'bg-blue-600 text-white':'bg-gray-100 text-gray-700'}`}>
                       {m.name}
                     </button>
                   ))}
@@ -153,7 +153,7 @@ function ShiftContent() {
             )}
 
             {selectedMember && (
-              <div className="bg-white rounded-xl p-4 shadow">
+              <div className="bg-white rounded-2xl p-4 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                   <div className="font-bold text-gray-800">{selectedMember}のシフト</div>
                   <div className="text-sm font-bold text-blue-600">稼働予定: {myShiftCount}日</div>
@@ -173,11 +173,11 @@ function ShiftContent() {
                       <button key={day}
                         onClick={() => canEdit && toggleShift(selectedMember, day)}
                         disabled={!canEdit}
-                        className={`aspect-square rounded-lg flex flex-col items-center justify-center text-xs font-bold
+                        className={`aspect-square rounded-xl flex flex-col items-center justify-center text-xs font-bold select-none transition-all
                           ${shift==='稼働'?'bg-green-500 text-white':shift==='休日'?'bg-gray-200 text-gray-400':'bg-gray-50 text-gray-700'}
                           ${isTodayDay?'ring-2 ring-blue-500':''}
                           ${shift===''?(dow===0?'!text-red-400':dow===6?'!text-blue-400':''):''}
-                          ${!canEdit?'opacity-50 cursor-not-allowed':''}
+                          ${canEdit?'active:scale-90':'opacity-50 cursor-not-allowed'}
                         `}>
                         <span>{day}</span>
                         {shift==='稼働' && <span className="text-xs leading-none">稼</span>}
@@ -192,7 +192,7 @@ function ShiftContent() {
         )}
 
         {view==='confirm' && (
-          <div className="bg-white rounded-xl shadow overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
             <div className="font-bold text-gray-800 p-4 border-b">全体シフト確認</div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
