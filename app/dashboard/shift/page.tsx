@@ -131,17 +131,23 @@ export default function ShiftPage() {
 
         {view==='submit' && (
           <>
-            <div className="bg-white rounded-xl p-4 shadow">
-              <div className="font-bold text-gray-800 mb-3">メンバーを選択</div>
-              <div className="flex flex-wrap gap-2">
-                {MEMBERS.map(m => (
-                  <button key={m.id} onClick={()=>setSelectedMember(m.name)}
-                    className={`px-3 py-1 rounded-full text-sm font-medium ${selectedMember===m.name?'bg-blue-600 text-white':'bg-gray-100 text-gray-700'}`}>
-                    {m.name}
-                  </button>
-                ))}
+            {/* 責任者のみ：メンバー選択 */}
+            {user?.isManager && (
+              <div className="bg-white rounded-xl p-4 shadow">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="font-bold text-gray-800">メンバーを選択</div>
+                  <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-bold">責任者モード</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {MEMBERS.map(m => (
+                    <button key={m.id} onClick={()=>setSelectedMember(m.name)}
+                      className={`px-3 py-1 rounded-full text-sm font-medium ${selectedMember===m.name?'bg-blue-600 text-white':'bg-gray-100 text-gray-700'}`}>
+                      {m.name}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {selectedMember && (
               <div className="bg-white rounded-xl p-4 shadow">
@@ -159,12 +165,16 @@ export default function ShiftPage() {
                     const shift = getShift(selectedMember, day);
                     const dow = getDay(day);
                     const isTodayDay = day===today.getDate();
+                    const canEdit = user?.isManager || selectedMember === user?.name;
                     return (
-                      <button key={day} onClick={()=>toggleShift(selectedMember, day)}
+                      <button key={day}
+                        onClick={() => canEdit && toggleShift(selectedMember, day)}
+                        disabled={!canEdit}
                         className={`aspect-square rounded-lg flex flex-col items-center justify-center text-xs font-bold
                           ${shift==='稼働'?'bg-green-500 text-white':shift==='休日'?'bg-gray-200 text-gray-400':'bg-gray-50 text-gray-700'}
                           ${isTodayDay?'ring-2 ring-blue-500':''}
                           ${shift===''?(dow===0?'!text-red-400':dow===6?'!text-blue-400':''):''}
+                          ${!canEdit?'opacity-50 cursor-not-allowed':''}
                         `}>
                         <span>{day}</span>
                         {shift==='稼働' && <span className="text-xs leading-none">稼</span>}
