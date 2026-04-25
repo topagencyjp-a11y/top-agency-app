@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { MEMBERS as DEFAULT_MEMBERS } from '@/lib/members';
 import { loadMembers } from '@/lib/memberStore';
 import { saveReport, getReports, getMembersFromGAS } from '@/lib/api';
+import { AREAS, CIRCLED } from '@/lib/areas';
 
 type Tab = 'input' | 'mine' | 'analysis' | 'team';
 
@@ -28,7 +29,11 @@ export default function Dashboard() {
     acquiredCase: '', lostCase: '',
     goodPoints: '', issues: '', improvements: '', learnings: '',
     gratitude: '', planDays: 20,
+    area1:'', area2:'', area3:'', area4:'', area5:'',
+    area6:'', area7:'', area8:'', area9:'', area10:'',
   });
+  const [areaTab, setAreaTab] = useState(1);
+  const [areaQuery, setAreaQuery] = useState('');
 
   const loadReports = useCallback(async () => {
     if (!initialLoadDone.current) setLoading(true);
@@ -80,10 +85,17 @@ export default function Dashboard() {
         issues: existing.issues||'', improvements: existing.improvements||'',
         learnings: existing.learnings||'', gratitude: existing.gratitude||'',
         planDays: Number(existing.planDays)||20,
+        area1: existing.area1||'', area2: existing.area2||'', area3: existing.area3||'',
+        area4: existing.area4||'', area5: existing.area5||'', area6: existing.area6||'',
+        area7: existing.area7||'', area8: existing.area8||'', area9: existing.area9||'',
+        area10: existing.area10||'',
       });
+      setAreaQuery(existing[`area${areaTab}`] || '');
     } else {
       setForm({ visits:0,netMeet:0,mainMeet:0,negotiation:0,acquired:0,startTime:'',endTime:'',
-        acquiredCase:'',lostCase:'',goodPoints:'',issues:'',improvements:'',learnings:'',gratitude:'',planDays:20 });
+        acquiredCase:'',lostCase:'',goodPoints:'',issues:'',improvements:'',learnings:'',gratitude:'',planDays:20,
+        area1:'',area2:'',area3:'',area4:'',area5:'',area6:'',area7:'',area8:'',area9:'',area10:'' });
+      setAreaQuery('');
     }
   }, [selectedDate, user, reports]);
 
@@ -106,6 +118,8 @@ export default function Dashboard() {
     const d = new Date(selectedDate);
     const dateStr = `${d.getMonth()+1}/${d.getDate()}（${['日','月','火','水','木','金','土'][d.getDay()]}）`;
     const lines = [`【${user?.name} 日報 ${dateStr}】`,``,`■ 稼働時間`,`${form.startTime||'--:--'} 〜 ${form.endTime||'--:--'}`,``,`■ 行動量`,`訪問：${form.visits}　対面：${form.netMeet}　主権：${form.mainMeet}　商談：${form.negotiation}　獲得：${form.acquired}`,``];
+    const areaList = [form.area1,form.area2,form.area3,form.area4,form.area5,form.area6,form.area7,form.area8,form.area9,form.area10].filter(Boolean);
+    if (areaList.length > 0) lines.push(`■ 獲得エリア\n${areaList.map((a,i)=>`${CIRCLED[i]} ${a}`).join('　')}\n`);
     if (form.acquiredCase) lines.push(`■ 獲得案件\n${form.acquiredCase}\n`);
     if (form.lostCase) lines.push(`■ 失注案件\n${form.lostCase}\n`);
     if (form.goodPoints) lines.push(`■ よかった点\n${form.goodPoints}\n`);
@@ -322,6 +336,98 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
+
+            {/* 獲得エリア選択 */}
+            {form.acquired > 0 && (() => {
+              const count = Math.min(form.acquired, 10);
+              const filteredAreas = areaQuery
+                ? AREAS.filter(a => a.includes(areaQuery)).slice(0, 8)
+                : [];
+              const currentVal = (form as any)[`area${areaTab}`] as string;
+              return (
+                <div className="bg-white rounded-2xl p-4 shadow-sm">
+                  <div className="font-bold text-gray-800 mb-3">📍 獲得エリア</div>
+
+                  {/* セグメントコントロール */}
+                  {count > 1 && (
+                    <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1">
+                      {Array.from({length: count}, (_, i) => {
+                        const n = i + 1;
+                        const area = (form as any)[`area${n}`] as string;
+                        return (
+                          <button key={n}
+                            onClick={() => { setAreaTab(n); setAreaQuery(area || ''); }}
+                            className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all active:scale-95 select-none
+                              ${areaTab === n ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                            獲得{CIRCLED[i]}{area ? ` ${area}` : ''}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* テキスト入力 */}
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={areaQuery}
+                      onChange={e => {
+                        const v = e.target.value;
+                        setAreaQuery(v);
+                        setForm({...form, [`area${areaTab}`]: v});
+                      }}
+                      placeholder="エリアを選択または入力"
+                      className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 pr-8"
+                    />
+                    {currentVal && (
+                      <button
+                        onClick={() => { setAreaQuery(''); setForm({...form, [`area${areaTab}`]: ''}); }}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xl leading-none active:opacity-60">
+                        ×
+                      </button>
+                    )}
+                  </div>
+
+                  {/* 候補リスト */}
+                  {areaQuery.length > 0 && (
+                    <div className="mt-1.5 max-h-44 overflow-y-auto border border-gray-200 rounded-xl divide-y divide-gray-100 shadow-sm">
+                      {filteredAreas.length > 0 ? filteredAreas.map(area => {
+                        const isSelected = currentVal === area;
+                        return (
+                          <button key={area}
+                            onClick={() => { setAreaQuery(area); setForm({...form, [`area${areaTab}`]: area}); }}
+                            className={`w-full text-left px-4 py-2.5 text-sm active:bg-gray-50 flex items-center justify-between transition-colors
+                              ${isSelected ? 'bg-green-50 text-green-700 font-bold' : 'text-gray-700'}`}>
+                            <span>{area}</span>
+                            {isSelected && <span className="text-green-500 font-black">✓</span>}
+                          </button>
+                        );
+                      }) : (
+                        <div className="px-4 py-2.5 text-sm text-gray-400">「{areaQuery}」で保存します</div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 選択済み一覧（複数の場合） */}
+                  {count > 1 && (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {Array.from({length: count}, (_, i) => {
+                        const area = (form as any)[`area${i+1}`] as string;
+                        return area ? (
+                          <span key={i} className="bg-green-100 text-green-700 text-xs font-bold px-2.5 py-1 rounded-full">
+                            {CIRCLED[i]} {area}
+                          </span>
+                        ) : (
+                          <span key={i} className="bg-gray-100 text-gray-400 text-xs px-2.5 py-1 rounded-full">
+                            {CIRCLED[i]} 未選択
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             <div className="bg-white rounded-2xl p-4 shadow-sm">
               <div className="font-bold text-gray-800 mb-3">📝 日報</div>
