@@ -116,6 +116,16 @@ export default function Dashboard() {
   const remainDays = Math.max(planDaysForView-workedDays,0);
   const forecast = Math.round(Number(productivity)*(workedDays+remainDays));
 
+  const selfReports = reports.filter(r => r.name===user?.name && r.date?.startsWith(thisMonth));
+  const selfAcquired = selfReports.reduce((s,r)=>s+(Number(r.acquired)||0),0);
+  const selfMember = members.find(m=>m.name===user?.name);
+  const selfTarget = selfMember?.target||0;
+  const selfRate = selfTarget>0 ? Math.round(selfAcquired/selfTarget*100) : 0;
+  const selfWorked = selfReports.filter(r=>Number(r.visits)>0).length;
+  const selfProductivity = selfWorked>0 ? selfAcquired/selfWorked : 0;
+  const selfRemain = Math.max((form.planDays||20)-selfWorked, 0);
+  const selfForecast = Math.round(selfProductivity*(selfWorked+selfRemain));
+
   const TEAM_TARGET = members.reduce((s,m)=>s+m.target,0);
   const teamStats = members.map(m => {
     const mR = reports.filter(r=>r.name===m.name && r.date?.startsWith(thisMonth));
@@ -242,6 +252,33 @@ export default function Dashboard() {
                   <input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)} className="text-xs text-gray-400 mt-1 border-0 bg-transparent cursor-pointer" />
                 </div>
                 <button onClick={()=>changeDate(1)} disabled={isToday} className="w-11 h-11 bg-gray-100 rounded-full text-gray-600 font-bold active:scale-90 transition-all duration-150 select-none disabled:opacity-30">›</button>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-4 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <div className="font-bold text-gray-800">📊 今月の状況</div>
+                <div className={`text-xs font-bold px-2.5 py-1 rounded-full ${selfRate>=80?'bg-green-100 text-green-700':selfRate>=50?'bg-yellow-100 text-yellow-700':'bg-red-100 text-red-500'}`}>
+                  達成率 {selfRate}%
+                </div>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
+                <div className={`h-2 rounded-full transition-all duration-500 ${selfRate>=80?'bg-green-500':selfRate>=50?'bg-yellow-500':'bg-red-500'}`} style={{width:`${Math.min(selfRate,100)}%`}}/>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  {label:'獲得件数', value:`${selfAcquired}件`,          color:'text-blue-600'},
+                  {label:'稼働日数', value:`${selfWorked}日`,             color:''},
+                  {label:'生産性',   value:`${selfProductivity.toFixed(2)}件/日`, color:'text-purple-600'},
+                  {label:'残稼働',   value:`${selfRemain}日`,             color:selfRemain<=5?'text-red-500':''},
+                  {label:'着地予測', value:`${selfForecast}件`,           color:'text-orange-500'},
+                  {label:'目標',     value:`${selfTarget}件`,             color:''},
+                ].map(item=>(
+                  <div key={item.label} className="bg-gray-50 rounded-xl p-2.5 text-center">
+                    <div className="text-xs text-gray-400">{item.label}</div>
+                    <div className={`font-bold text-sm mt-0.5 ${item.color||'text-gray-900'}`}>{item.value}</div>
+                  </div>
+                ))}
               </div>
             </div>
 
