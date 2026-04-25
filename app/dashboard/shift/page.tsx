@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { MEMBERS } from '@/lib/members';
+import { getShifts, saveShift } from '@/lib/api';
 
 type ShiftStatus = '稼働' | '休日' | '';
 
@@ -11,6 +12,7 @@ export default function ShiftPage() {
   const [view, setView] = useState<'submit' | 'confirm'>('submit');
   const [shifts, setShifts] = useState<Record<string, Record<string, ShiftStatus>>>({});
   const [selectedMember, setSelectedMember] = useState('');
+  const [loading, setLoading] = useState(true);
 
   const today = new Date();
   const year = today.getFullYear();
@@ -26,8 +28,16 @@ export default function ShiftPage() {
     const parsed = JSON.parse(u);
     setUser(parsed);
     setSelectedMember(parsed.name);
-    const stored = localStorage.getItem('shifts');
-    if (stored) setShifts(JSON.parse(stored));
+
+    getShifts().then((data: { name: string; date: string; status: string }[]) => {
+      const map: Record<string, Record<string, ShiftStatus>> = {};
+      for (const s of data) {
+        if (!map[s.name]) map[s.name] = {};
+        map[s.name][s.date] = s.status as ShiftStatus;
+      }
+      setShifts(map);
+      setLoading(false);
+    });
   }, []);
 
   const getDay = (day: number) => new Date(year, month, day).getDay();
@@ -36,9 +46,8 @@ export default function ShiftPage() {
     const key = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
     const current = shifts[name]?.[key] || '';
     const next: ShiftStatus = current==='' ? '稼働' : current==='稼働' ? '休日' : '';
-    const updated = { ...shifts, [name]: { ...shifts[name], [key]: next } };
-    setShifts(updated);
-    localStorage.setItem('shifts', JSON.stringify(updated));
+    setShifts(prev => ({ ...prev, [name]: { ...prev[name], [key]: next } }));
+    saveShift(name, key, next);
   };
 
   const getShift = (name: string, day: number): ShiftStatus => {
@@ -69,6 +78,12 @@ export default function ShiftPage() {
         <button onClick={()=>setView('submit')} className={`px-6 py-3 text-sm font-medium ${view==='submit'?'bg-blue-600 text-white':'text-gray-400'}`}>シフト入力</button>
         <button onClick={()=>setView('confirm')} className={`px-6 py-3 text-sm font-medium ${view==='confirm'?'bg-blue-600 text-white':'text-gray-400'}`}>全体確認</button>
       </div>
+
+      {loading && (
+        <div className="flex items-center justify-center py-16 text-gray-400 text-sm">
+          シフトデータを読み込み中...
+        </div>
+      )}
 
       <div className="p-4 max-w-3xl mx-auto space-y-4">
 
