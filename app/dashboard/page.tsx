@@ -15,6 +15,8 @@ export default function Dashboard() {
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showDrawer, setShowDrawer] = useState(false);
+  const [viewingMember, setViewingMember] = useState('');
+  const [showMemberPicker, setShowMemberPicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [form, setForm] = useState({
     visits: 0, netMeet: 0, mainMeet: 0, negotiation: 0, acquired: 0,
@@ -39,8 +41,11 @@ export default function Dashboard() {
   useEffect(() => {
     const u = localStorage.getItem('user');
     if (!u) { router.push('/login'); return; }
-    setUser(JSON.parse(u));
+    const parsed = JSON.parse(u);
+    setUser(parsed);
+    setViewingMember(parsed.name);
     const stored = localStorage.getItem('reports');
+
     if (stored) setReports(JSON.parse(stored));
     loadReports();
   }, []);
@@ -95,14 +100,17 @@ export default function Dashboard() {
   };
 
   const thisMonth = new Date().toISOString().slice(0,7);
-  const myReports = reports.filter(r => r.name===user?.name && r.date?.startsWith(thisMonth));
+  const viewTarget = viewingMember || user?.name || '';
+  const isViewingSelf = viewTarget === user?.name;
+  const myReports = reports.filter(r => r.name===viewTarget && r.date?.startsWith(thisMonth));
   const myAcquired = myReports.reduce((s,r)=>s+(Number(r.acquired)||0),0);
-  const myMember = MEMBERS.find(m=>m.name===user?.name);
+  const myMember = MEMBERS.find(m=>m.name===viewTarget);
   const myTarget = myMember?.target||0;
   const myRate = myTarget>0 ? Math.round(myAcquired/myTarget*100) : 0;
   const workedDays = myReports.filter(r=>Number(r.visits)>0).length;
   const productivity = workedDays>0 ? (myAcquired/workedDays).toFixed(2) : '0.00';
-  const remainDays = Math.max((form.planDays||20)-workedDays,0);
+  const planDaysForView = isViewingSelf ? (form.planDays||20) : (Number(myReports.find(r=>r.planDays)?.planDays)||20);
+  const remainDays = Math.max(planDaysForView-workedDays,0);
   const forecast = Math.round(Number(productivity)*(workedDays+remainDays));
 
   const teamStats = MEMBERS.map(m => {
@@ -170,13 +178,35 @@ export default function Dashboard() {
         <div className="flex items-center gap-3">
           <div className="font-bold text-blue-400 text-lg">TOP</div>
           <span className="text-sm bg-gray-700 px-2 py-1 rounded">{thisMonth.replace('-','/')}</span>
-          {user && <span className="text-sm text-gray-300">{user.name}</span>}
+          {user && (
+            user?.isManager ? (
+              <button onClick={()=>setShowMemberPicker(p=>!p)}
+                className="text-sm bg-yellow-600/30 text-yellow-300 px-2 py-1 rounded flex items-center gap-1">
+                {viewTarget} ▾
+              </button>
+            ) : (
+              <span className="text-sm text-gray-300">{user.name}</span>
+            )
+          )}
         </div>
         <div className="flex items-center gap-3">
           {loading && <span className="text-xs text-gray-400">同期中...</span>}
           <button onClick={()=>{localStorage.clear();router.push('/login');}} className="text-gray-400 text-sm hover:text-white">ログアウト</button>
         </div>
       </div>
+
+      {/* 責任者：メンバー選択ドロップダウン */}
+      {showMemberPicker && user?.isManager && (
+        <div className="bg-gray-800 border-b border-gray-700 px-4 py-3 flex flex-wrap gap-2">
+          {MEMBERS.map(m=>(
+            <button key={m.id}
+              onClick={()=>{ setViewingMember(m.name); setShowMemberPicker(false); setTab('mine'); }}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold transition ${viewTarget===m.name?'bg-blue-600 text-white':'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}>
+              {m.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="bg-gray-900 flex border-b border-gray-700">
         <div className="flex overflow-x-auto flex-1">
@@ -271,10 +301,17 @@ export default function Dashboard() {
         {/* ===== 自分タブ ===== */}
         {tab==='mine' && (
           <div className="space-y-4">
+            {!isViewingSelf && user?.isManager && (
+              <div className="bg-yellow-50 border border-yellow-300 rounded-xl px-4 py-2 flex items-center justify-between">
+                <span className="text-sm font-bold text-yellow-700">📋 {viewTarget} の個人ページ</span>
+                <button onClick={()=>{ setViewingMember(user.name); }}
+                  className="text-xs text-yellow-600 underline">自分に戻る</button>
+              </div>
+            )}
             <div className="bg-white rounded-xl p-4 shadow">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <div className="text-xl font-bold text-gray-900">{user?.name}</div>
+                  <div className="text-xl font-bold text-gray-900">{viewTarget}</div>
                   <div className="text-gray-500 text-sm">{myMember?.role==='closer'?'クローザー':'アポインター'} / 目標 {myTarget}件</div>
                 </div>
                 <div className={`text-2xl font-bold ${myRate>=80?'text-green-600':myRate>=50?'text-yellow-500':'text-red-500'}`}>{myRate}%</div>
