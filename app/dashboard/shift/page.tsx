@@ -1,15 +1,18 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { MEMBERS } from '@/lib/members';
 import { getShifts, saveShift } from '@/lib/api';
 
 type ShiftStatus = '稼働' | '休日' | '';
 
-export default function ShiftPage() {
+function ShiftContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [user, setUser] = useState<any>(null);
-  const [view, setView] = useState<'submit' | 'confirm'>('submit');
+  const [view, setView] = useState<'submit' | 'confirm'>(
+    searchParams.get('view') === 'confirm' ? 'confirm' : 'submit'
+  );
   const [shifts, setShifts] = useState<Record<string, Record<string, ShiftStatus>>>({});
   const [selectedMember, setSelectedMember] = useState('');
   const [loading, setLoading] = useState(true);
@@ -246,5 +249,13 @@ export default function ShiftPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function ShiftPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-100 flex items-center justify-center text-gray-400 text-sm">読み込み中...</div>}>
+      <ShiftContent />
+    </Suspense>
   );
 }

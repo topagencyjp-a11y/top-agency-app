@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { MEMBERS, TEAM_TARGET } from '@/lib/members';
 import { saveReport, getReports } from '@/lib/api';
 
-type Tab = 'input' | 'mine' | 'team' | 'contracts';
+type Tab = 'input' | 'mine' | 'analysis' | 'team';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -14,6 +14,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showDrawer, setShowDrawer] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [form, setForm] = useState({
     visits: 0, netMeet: 0, mainMeet: 0, negotiation: 0, acquired: 0,
@@ -126,6 +127,12 @@ export default function Dashboard() {
   const teamRate = Math.round(totalAcquired/TEAM_TARGET*100);
   const totalVisits = teamStats.reduce((s,m)=>s+m.visits,0);
   const totalNetMeet = teamStats.reduce((s,m)=>s+m.netMeet,0);
+  const totalMainMeet = teamStats.reduce((s,m)=>s+m.mainMeet,0);
+  const totalNegotiation = teamStats.reduce((s,m)=>s+m.negotiation,0);
+  const teamMeetRate = totalVisits>0 ? Math.round(totalNetMeet/totalVisits*100) : 0;
+  const teamMainRate = totalNetMeet>0 ? Math.round(totalMainMeet/totalNetMeet*100) : 0;
+  const teamNegRate = totalMainMeet>0 ? Math.round(totalNegotiation/totalMainMeet*100) : 0;
+  const teamContractRate = totalNegotiation>0 ? Math.round(totalAcquired/totalNegotiation*100) : 0;
 
   const inputStyle = "w-full border border-gray-300 rounded px-3 py-2 text-sm mt-1 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500";
   const textareaStyle = "w-full border border-gray-300 rounded px-3 py-2 text-sm mt-1 h-20 resize-none text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500";
@@ -142,10 +149,19 @@ export default function Dashboard() {
   ];
 
   const tabs = [
-    {id:'input',label:'✏️ 入力'},
-    {id:'mine',label:'📊 自分'},
-    {id:'team',label:'🏆 全体'},
-    {id:'contracts',label:'🏠 契約宅'},
+    {id:'input',    label:'✏️ 入力'},
+    {id:'mine',     label:'👤 個人'},
+    {id:'analysis', label:'🔄 分析'},
+    {id:'team',     label:'🏆 全体'},
+  ];
+
+  const drawerMenus = [
+    {label:'📅 シフト提出',     path:'/dashboard/shift?view=submit'},
+    {label:'📊 日別稼働',       path:'/dashboard/stats'},
+    {label:'📝 日報管理',       path:'/dashboard/reports'},
+    {label:'✅ シフト提出確認', path:'/dashboard/shift?view=confirm'},
+    {label:'⚙️ 設定',           path:'/dashboard/settings'},
+    {label:'📋 提出確認',       path:'/dashboard/reports'},
   ];
 
   return (
@@ -162,13 +178,18 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="bg-gray-900 flex overflow-x-auto border-b border-gray-700">
-        {tabs.map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id as Tab)}
-            className={`px-4 py-3 text-sm whitespace-nowrap transition ${tab===t.id?'bg-blue-600 text-white':'text-gray-400 hover:text-white'}`}>
-            {t.label}
-          </button>
-        ))}
+      <div className="bg-gray-900 flex border-b border-gray-700">
+        <div className="flex overflow-x-auto flex-1">
+          {tabs.map(t=>(
+            <button key={t.id} onClick={()=>setTab(t.id as Tab)}
+              className={`px-4 py-3 text-sm whitespace-nowrap transition ${tab===t.id?'bg-blue-600 text-white':'text-gray-400 hover:text-white'}`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <button onClick={()=>setShowDrawer(true)} className="px-4 py-3 text-gray-400 hover:text-white shrink-0 border-l border-gray-700 text-lg">
+          ☰
+        </button>
       </div>
 
       <div className="p-4 max-w-2xl mx-auto">
@@ -417,35 +438,88 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* ===== 契約宅タブ ===== */}
-        {tab==='contracts' && (
+        {/* ===== 分析タブ ===== */}
+        {tab==='analysis' && (
           <div className="space-y-4">
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-              <div className="font-bold text-red-700 mb-1">📞 工事日電話が必要</div>
-              <div className="text-xs text-red-500 mb-3">獲得日から3日以上経過のお客様</div>
-              {reports.filter(r=>r.name===user?.name && Number(r.acquired)>0 && Math.floor((Date.now()-new Date(r.date).getTime())/86400000)>=3).map((r,i)=>(
-                <div key={i} className="bg-white rounded-lg p-3 mb-2 border border-red-100">
-                  <div className="font-bold text-sm text-gray-900">{r.acquiredCase||'案件詳細なし'}</div>
-                  <div className="text-xs text-gray-500 mt-1">獲得: {r.date} ({Math.floor((Date.now()-new Date(r.date).getTime())/86400000)}日経過)</div>
-                </div>
-              ))}
+            <div className="bg-gray-900 text-white rounded-xl p-4">
+              <div className="text-xs text-gray-400 mb-1">総転換率（訪問→契約）</div>
+              <div className="text-4xl font-bold text-blue-400">
+                {totalVisits>0?(totalAcquired/totalVisits*100).toFixed(2):'0.00'}
+                <span className="text-lg ml-1">%</span>
+              </div>
+              <div className="text-xs text-gray-400 mt-1">{totalVisits}訪問 → {totalAcquired}契約</div>
             </div>
             <div className="bg-white rounded-xl p-4 shadow">
-              <div className="font-bold text-gray-800 mb-3">📋 全獲得案件</div>
-              {reports.filter(r=>r.name===user?.name && Number(r.acquired)>0).sort((a,b)=>new Date(b.date).getTime()-new Date(a.date).getTime()).map((r,i)=>(
-                <div key={i} className="py-3 border-b last:border-0">
-                  <div className="flex justify-between items-start">
-                    <div className="text-sm font-bold text-gray-900">{r.acquiredCase||'案件詳細なし'}</div>
-                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">手続き中</span>
+              <div className="font-bold text-gray-800 mb-3">📊 チーム転換率ファネル</div>
+              {[
+                {label:'訪問→対面', rate:teamMeetRate,  bench:30, value:totalNetMeet},
+                {label:'対面→主権', rate:teamMainRate,  bench:50, value:totalMainMeet},
+                {label:'主権→商談', rate:teamNegRate,   bench:40, value:totalNegotiation},
+                {label:'商談→契約', rate:teamContractRate, bench:30, value:totalAcquired},
+              ].map(step=>{
+                const textColor = step.rate>=step.bench?'text-green-600':step.rate>=step.bench*0.6?'text-yellow-600':'text-red-500';
+                return (
+                  <div key={step.label} className="flex items-center justify-between py-2 border-b last:border-0">
+                    <span className="text-sm text-gray-700">{step.label}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-400">{step.value}件</span>
+                      <span className={`font-bold text-sm ${textColor}`}>{step.rate}%</span>
+                      <span className="text-xs text-gray-300">基準{step.bench}%</span>
+                    </div>
                   </div>
-                  <div className="text-xs text-gray-500 mt-1">{r.date}</div>
-                </div>
-              ))}
+                );
+              })}
+            </div>
+            <div className="bg-white rounded-xl shadow overflow-hidden">
+              <div className="font-bold text-gray-800 p-4 border-b">👥 メンバー別転換率</div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead className="bg-gray-800 text-white">
+                    <tr>
+                      {['氏名','訪問','対面率','獲得率','総転換'].map(h=>(
+                        <th key={h} className="px-2 py-2 text-left">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {teamStats.map((m,i)=>(
+                      <tr key={m.id} className={i%2===0?'bg-white':'bg-gray-50'}>
+                        <td className="px-2 py-2 font-bold text-gray-900">{m.name}</td>
+                        <td className="px-2 py-2 text-gray-600">{m.visits}</td>
+                        <td className={`px-2 py-2 font-bold ${m.meetRate>=30?'text-green-600':m.meetRate>=18?'text-yellow-600':'text-red-500'}`}>{m.meetRate}%</td>
+                        <td className={`px-2 py-2 font-bold ${m.getRate>=30?'text-green-600':m.getRate>=18?'text-yellow-600':'text-red-500'}`}>{m.getRate}%</td>
+                        <td className="px-2 py-2 font-bold text-blue-600">{m.visits>0?(m.acquired/m.visits*100).toFixed(1):'0.0'}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
 
       </div>
+
+      {/* ===== ドロワーメニュー ===== */}
+      {showDrawer && (
+        <div className="fixed inset-0 z-50 bg-black/60" onClick={()=>setShowDrawer(false)}>
+          <div className="absolute right-0 top-0 bottom-0 w-64 bg-gray-900 shadow-2xl flex flex-col" onClick={e=>e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-4 border-b border-gray-700">
+              <div className="text-white font-bold text-sm">メニュー</div>
+              <button onClick={()=>setShowDrawer(false)} className="text-gray-400 hover:text-white text-xl leading-none">✕</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 space-y-1">
+              {drawerMenus.map(item=>(
+                <button key={item.label}
+                  onClick={()=>{ router.push(item.path); setShowDrawer(false); }}
+                  className="w-full text-left px-4 py-3 text-white hover:bg-gray-800 rounded-xl text-sm font-medium">
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
