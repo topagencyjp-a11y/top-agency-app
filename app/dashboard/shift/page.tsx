@@ -88,11 +88,14 @@ function ShiftContent() {
     setSaving(true);
     const memberShifts = shifts[selectedMember] || {};
     await Promise.all(
-      Object.entries(memberShifts).map(([date, status]) => saveShift(selectedMember, date, status))
+      Object.entries(memberShifts)
+        .filter(([, status]) => status !== '')
+        .map(([date, status]) => saveShift(selectedMember, date, status))
     );
-    setSaving(false);
     setHasChanges(false);
     hasChangesRef.current = false;
+    await syncShifts();
+    setSaving(false);
     setSavedMsg('保存しました');
     setTimeout(() => setSavedMsg(''), 2000);
   };
