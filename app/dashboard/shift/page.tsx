@@ -36,6 +36,7 @@ function ShiftContent() {
   const syncShifts = async () => {
     if (hasChangesRef.current) return; // 未保存の変更がある間は上書きしない
     const data = await getShifts();
+    if (hasChangesRef.current) return; // fetch中にタップされた場合も上書きしない
     if (data.length > 0) {
       const map: Record<string, Record<string, ShiftStatus>> = {};
       for (const s of data) {

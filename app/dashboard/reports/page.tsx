@@ -11,8 +11,8 @@ export default function ReportsPage() {
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMember, setSelectedMember] = useState('all');
-  const [expandedReport, setExpandedReport] = useState<number | null>(null);
-  const [copied, setCopied] = useState<number | null>(null);
+  const [expandedReport, setExpandedReport] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
   const [members, setMembers] = useState(DEFAULT_MEMBERS);
   const [lastUpdated, setLastUpdated] = useState<Date|null>(null);
   const initialLoadDone = useRef(false);
@@ -64,6 +64,8 @@ export default function ReportsPage() {
     return `${d.getMonth()+1}/${d.getDate()}（${['日','月','火','水','木','金','土'][d.getDay()]}）`;
   };
 
+  const reportKey = (r: any) => `${r.name}_${r.date}`;
+
   const copyReport = (r: any, i: number) => {
     const lines = [
       `【${r.name} 日報 ${formatDate(r.date)}】`,
@@ -83,7 +85,8 @@ export default function ReportsPage() {
     if (r.learnings) lines.push(`■ 学び・気づき\n${r.learnings}\n`);
     if (r.gratitude) lines.push(`■ 感謝・シェアしたいこと\n${r.gratitude}\n`);
     navigator.clipboard.writeText(lines.join('\n')).then(() => {
-      setCopied(i);
+      const key = reportKey(r);
+      setCopied(key);
       setTimeout(() => setCopied(null), 2000);
     });
   };
@@ -140,10 +143,10 @@ export default function ReportsPage() {
           <>
             <div className="text-xs text-gray-500 font-medium px-1">{filtered.length}件の日報</div>
             {filtered.map((r, i) => (
-              <div key={i} className="bg-white rounded-2xl shadow-sm overflow-hidden">
+              <div key={reportKey(r)} className="bg-white rounded-2xl shadow-sm overflow-hidden">
                 {/* ヘッダー */}
                 <div className="p-4 active:bg-gray-50 transition-colors cursor-pointer"
-                  onClick={() => setExpandedReport(expandedReport === i ? null : i)}>
+                  onClick={() => setExpandedReport(expandedReport === reportKey(r) ? null : reportKey(r))}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-bold text-sm shrink-0">
@@ -181,7 +184,7 @@ export default function ReportsPage() {
                 </div>
 
                 {/* 日報詳細 */}
-                {expandedReport === i && (
+                {expandedReport === reportKey(r) && (
                   <div className="border-t">
                     <div className="px-4 py-3 space-y-3">
                       {reportItems.filter(item => r[item.key]).map(item => (
@@ -197,7 +200,7 @@ export default function ReportsPage() {
                     <div className="px-4 pb-4">
                       <button onClick={() => copyReport(r, i)}
                         className="w-full border border-blue-600 text-blue-600 font-bold py-3 rounded-2xl text-sm active:scale-95 transition-all duration-150 select-none">
-                        {copied === i ? '✅ コピーしました！' : '📋 この日報をコピー'}
+                        {copied === reportKey(r) ? '✅ コピーしました！' : '📋 この日報をコピー'}
                       </button>
                     </div>
                   </div>
