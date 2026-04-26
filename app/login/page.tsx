@@ -8,19 +8,32 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [memberNames, setMemberNames] = useState(['プラ','岩永','橋本','高木','長谷川','中西','佐藤','小島']);
+  const [memberNames, setMemberNames] = useState<string[]>([]);
+  const [membersLoading, setMembersLoading] = useState(true);
 
   useEffect(() => {
-    const stored = localStorage.getItem('members');
-    if (stored) {
-      try { setMemberNames(JSON.parse(stored).map((m: any) => m.name)); } catch {}
-    }
     import('@/lib/api').then(({ getMembersFromGAS }) => {
       getMembersFromGAS().then(data => {
         if (data.length > 0) {
+          const names = data.map((m: any) => m.name);
           localStorage.setItem('members', JSON.stringify(data));
-          setMemberNames(data.map((m: any) => m.name));
+          setMemberNames(names);
+          // 選択中の名前が新リストにない場合はリセット
+          setName(prev => names.includes(prev) ? prev : '');
+        } else {
+          // GAS取得失敗時はlocalStorageから
+          const stored = localStorage.getItem('members');
+          if (stored) {
+            try { setMemberNames(JSON.parse(stored).map((m: any) => m.name)); } catch {}
+          }
         }
+        setMembersLoading(false);
+      }).catch(() => {
+        const stored = localStorage.getItem('members');
+        if (stored) {
+          try { setMemberNames(JSON.parse(stored).map((m: any) => m.name)); } catch {}
+        }
+        setMembersLoading(false);
       });
     });
   }, []);
@@ -56,16 +69,22 @@ export default function LoginPage() {
         <div className="space-y-4">
           <div>
             <label className="text-gray-400 text-xs font-medium mb-2 block uppercase tracking-wide">氏名</label>
-            <select
-              value={name}
-              onChange={e => setName(e.target.value)}
-              className="w-full bg-gray-800 text-white rounded-2xl px-4 py-4 outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-            >
-              <option value="">選択してください</option>
-              {memberNames.map(n => (
-                <option key={n} value={n}>{n}</option>
-              ))}
-            </select>
+            {membersLoading ? (
+              <div className="w-full bg-gray-800 text-gray-500 rounded-2xl px-4 py-4 text-sm animate-pulse">
+                読み込み中...
+              </div>
+            ) : (
+              <select
+                value={name}
+                onChange={e => setName(e.target.value)}
+                className="w-full bg-gray-800 text-white rounded-2xl px-4 py-4 outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              >
+                <option value="">選択してください</option>
+                {memberNames.map(n => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            )}
           </div>
           <div>
             <label className="text-gray-400 text-xs font-medium mb-2 block uppercase tracking-wide">パスワード</label>
@@ -85,7 +104,7 @@ export default function LoginPage() {
           )}
           <button
             onClick={handleLogin}
-            disabled={loading || !name || !password}
+            disabled={loading || membersLoading || !name || !password}
             className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl text-sm active:scale-95 transition-all duration-150 select-none disabled:opacity-40 mt-2"
           >
             {loading ? '認証中...' : 'ログイン'}
