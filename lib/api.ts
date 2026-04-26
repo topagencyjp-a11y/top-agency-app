@@ -63,3 +63,15 @@ export async function saveMembersToGAS(members: any[]) {
     console.error(e);
   }
 }
+
+export async function updatePasswordInGAS(id: string, currentPassword: string, newPassword: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'updatePassword', id, currentPassword, newPassword }),
+    });
+    return await res.json();
+  } catch {
+    return { success: false, error: '通信エラー' };
+  }
+}

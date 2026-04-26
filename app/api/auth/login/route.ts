@@ -1,27 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createToken } from '@/lib/auth';
-import { MEMBERS } from '@/lib/members';
 
-const MEMBER_PASSWORD = 'top2024';
-const MANAGER_PASSWORD = 'topMgr2024!';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxPREdkeBmMVJ-tCg5ih_wUrHnwZ4Ypv_m4hNHeo2oDogZEA0UOinSaiAZieU9WQSEH_w/exec';
 
 export async function POST(req: NextRequest) {
   const { name, password } = await req.json();
+  if (!name || !password) return NextResponse.json({ success: false });
 
-  if (!name || (password !== MEMBER_PASSWORD && password !== MANAGER_PASSWORD)) {
+  try {
+    const res  = await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'getAccount', name, password }),
+    });
+    const data = await res.json();
+    if (!data.account) return NextResponse.json({ success: false });
+
+    const token = createToken(data.account);
+    return NextResponse.json({ success: true, token, user: data.account });
+  } catch {
     return NextResponse.json({ success: false });
   }
-
-  const isManagerPassword = password === MANAGER_PASSWORD;
-  const hardcodedMember = MEMBERS.find(m => m.name === name);
-
-  // 管理者パスワードを知っていること自体を権限の証拠とする
-  const payload = {
-    id: hardcodedMember?.id ?? name,
-    name,
-    role: hardcodedMember?.role ?? 'closer',
-    isManager: isManagerPassword,
-  };
-  const token = createToken(payload);
-  return NextResponse.json({ success: true, token, user: payload });
 }
