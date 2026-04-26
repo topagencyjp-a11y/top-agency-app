@@ -69,11 +69,6 @@ function ShiftContent() {
     }
 
     syncShifts();
-
-    const interval = setInterval(syncShifts, 20000);
-    const onVisible = () => { if (document.visibilityState === 'visible') syncShifts(); };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onVisible); };
   }, []);
 
   const getDay = (day: number) => new Date(year, month, day).getDay();
