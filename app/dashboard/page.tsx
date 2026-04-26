@@ -22,6 +22,8 @@ export default function Dashboard() {
   const [members, setMembers] = useState(DEFAULT_MEMBERS);
   const [lastUpdated, setLastUpdated] = useState<Date|null>(null);
   const initialLoadDone = useRef(false);
+  const formDirty = useRef(false);
+  const lastPopulatedDate = useRef('');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [form, setForm] = useState({
     visits: 0, netMeet: 0, mainMeet: 0, negotiation: 0, acquired: 0,
@@ -74,6 +76,12 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!user) return;
+    const dateChanged = selectedDate !== lastPopulatedDate.current;
+    // バックグラウンド同期でreportsが更新されても、入力中なら上書きしない
+    if (!dateChanged && formDirty.current) return;
+    lastPopulatedDate.current = selectedDate;
+    formDirty.current = false;
+
     const existing = reports.find(r => r.date === selectedDate && r.name === user.name);
     if (existing) {
       setForm({
@@ -105,6 +113,7 @@ export default function Dashboard() {
     setSaving(true);
     const report = { ...form, date: selectedDate, name: user?.name };
     try {
+      formDirty.current = false; // 保存したので上書きOK
       await saveReport(report);
       await loadReports();
       alert('保存しました！');
@@ -274,7 +283,7 @@ export default function Dashboard() {
 
         {/* ===== 入力タブ ===== */}
         {tab==='input' && (
-          <div className="space-y-4 tab-animate">
+          <div className="space-y-4 tab-animate" onFocus={() => { formDirty.current = true; }}>
             <div className="bg-white rounded-2xl p-4 shadow-sm">
               <div className="flex items-center justify-between">
                 <button onClick={()=>changeDate(-1)} className="w-11 h-11 bg-gray-100 rounded-full text-gray-600 font-bold active:scale-90 transition-all duration-150 select-none">‹</button>
