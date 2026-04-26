@@ -41,5 +41,17 @@ export async function POST(req: NextRequest) {
     } catch {}
   }
 
+  // 3. 最終フォールバック: GASが完全に落ちていても共通パスワードで通す
+  if (password === MANAGER_PASSWORD || password === MEMBER_PASSWORD) {
+    const payload = {
+      id:        name,
+      name:      name,
+      role:      'closer' as const,
+      isManager: password === MANAGER_PASSWORD,
+    };
+    const token = createToken(payload);
+    return NextResponse.json({ success: true, token, user: payload });
+  }
+
   return NextResponse.json({ success: false });
 }
