@@ -3,11 +3,12 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const NAV = [
-  { href: '/dashboard',            icon: '✏️',  label: '入力',   exact: true  },
-  { href: '/dashboard/stats',      icon: '📊',  label: '件数'                 },
-  { href: '/dashboard/conversion', icon: '🔄',  label: '転換率'               },
-  { href: '/dashboard/reports',    icon: '📝',  label: '日報'                 },
-  { href: '/dashboard/shift',      icon: '📅',  label: 'シフト'               },
+  { href: '/dashboard',             icon: '✏️',  label: '入力',   exact: true  },
+  { href: '/dashboard/stats',       icon: '📊',  label: '件数'                 },
+  { href: '/dashboard/conversion',  icon: '🔄',  label: '転換率'               },
+  { href: '/dashboard/activity',    icon: '📈',  label: '行動量'               },
+  { href: '/dashboard/reports',     icon: '📝',  label: '日報'                 },
+  { href: '/dashboard/shift',       icon: '📅',  label: 'シフト'               },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
