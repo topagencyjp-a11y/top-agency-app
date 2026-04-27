@@ -1,68 +1,194 @@
-# TOP Agency 営業管理アプリ
+# TOP Agency 営業管理アプリ 設計仕様書
 
-## プロジェクト概要
-au光販売代理店向けの営業管理アプリ。メンバーが日報・行動量を入力し、個人・チーム数値を可視化する。
+## アプリ概要
+au光販売代理店向け営業管理アプリ。
+メンバーが日報・行動量を入力し、個人・チーム数値を可視化する。
 
 ## 技術スタック
 - Next.js (App Router) + TypeScript + Tailwind CSS
-- Vercel デプロイ（固定費ゼロ）
+- Vercel デプロイ
 - データ: GAS経由でGoogleスプレッドシートに保存
-- 認証: JWT (jsonwebtoken)
+- 認証: JWT
 
 ## URL情報
-- 本番: https://topagency-sales-app.vercel.app
+- 本番: https://top-agency-jp.vercel.app
 - GitHub: https://github.com/topagencyjp-a11y/top-agency-app
-- パスワード: top2024（全員共通）
-- GAS URL: https://script.google.com/macros/s/AKfycbyhbSNrD5-JdXWW4SCnXeUK7bcm3-o1mm8nq4e8wSlAhG9MhHHOELiUoD_QgrztPAOWug/exec
+- GAS URL: https://script.google.com/macros/s/AKfycbWYGlW-oq8FIAdsHhin4pqUZICN_Ju39mhwkyohDBi3LIFZUZUklNaVMxrluRC05oOCvw/exec
 
-## メンバー構成 (lib/members.ts)
+## メンバー構成
 - クローザー（目標15件）: プラ・岩永・橋本・高木
 - アポインター→クローザー（目標10件）: 長谷川・中西
 - アポインター（目標5件）: 佐藤・小島
 - チーム月間目標: 80件
 
-## ファイル構成
-app/
-  dashboard/
-    page.tsx          # 入力・自分・全体・契約宅タブ
-    layout.tsx        # ボトムナビ（5タブ）
-    stats/page.tsx    # 数値管理（チームKPI・メンバー別）
-    conversion/page.tsx # 転換率分析・ボトルネック検出
-    reports/page.tsx  # 日報管理・閲覧・コピー
-    shift/page.tsx    # シフト管理・今日の稼働状況
-  login/page.tsx      # ログイン（氏名選択+パスワード）
-  api/auth/login/route.ts
-lib/
-  members.ts          # メンバー定義・目標
-  api.ts              # GAS通信（saveReport/getReports/saveShift/getShifts）
-  auth.ts             # JWT生成・検証
+## ページ構成（これが唯一の正解）
 
-## ページ・機能一覧
-1. ✏️ 入力: 日付変更・稼働時間・行動量（±ボタン+数値入力）・日報・コピー機能
-2. 📊 自分: 個人KPI・達成率・着地予測・行動量合計・対面率・獲得率
-3. 🏆 全体: チーム獲得・着地予測・ランキングバー・行動量・メンバー別テーブル
-4. 🏠 契約宅: 工事日電話リスト・全獲得案件
-5. 📊 数値管理: チームKPI・行動量・個人詳細・各種率
-6. 🔄 転換率: ファネル・ボトルネック自動検出・改善策・メンバー別転換率
-7. 📝 日報管理: 一覧・展開閲覧・コピー
-8. 📅 シフト: カレンダー入力・今日の稼働状況・全体確認
+### ナビゲーション（5ページ固定）
+✏️ 入力 | 📊 件数管理 | 🔄 行動量管理 | 👤 個人分析 | 📅 シフト
 
-## データ構造（GASスプレッドシート）
-### reportsシート
-name, date, visits, netMeet, mainMeet, negotiation, acquired,
-startTime, endTime, acquiredCase, lostCase, goodPoints, issues,
-improvements, learnings, gratitude, planDays
+### 不要なページ（削除する）
+- conversion/page.tsx → 個人分析に統合
+- reports/page.tsx → 入力ページに統合
+- daily/page.tsx → 削除
+- settings/page.tsx → シフトページのメニューに移動
+- dashboard/page.tsx の分析・全体タブ → 各専用ページに移行
 
-### shiftsシート
-name, date, status（稼働/休日）
+---
 
-## 次にやりたいこと（TODO）
-- [ ] 権限分離（責任者は全員分・メンバーは自分のみ閲覧）
-- [ ] シフトデータをGASに保存（現在はlocalStorageのみ）
-- [ ] 転換率のベンチマーク値を調整可能にする
-- [ ] 月次レポート自動生成
+## 各ページ詳細仕様
+
+### ✏️ 入力ページ (app/dashboard/page.tsx)
+**メンバーが毎日使うページ**
+
+入力項目（必要最小限）:
+- 日付選択（前後移動・カレンダー）
+- 稼働開始・終了時刻
+- 行動量5項目: 訪問数・対面数・主権対面数・商談数・獲得数
+- 獲得エリア: 獲得数に連動してタブが増える（獲得1件→1タブ、2件→2タブ）
+  エリア入力は大阪府の市区町村をサジェスト表示
+- 日報テキスト6項目:
+  獲得案件・失注案件・よかった点・課題・改善・学び
+- 感謝（任意・折りたたみ）
+
+自動計算してリアルタイム表示（入力不要）:
+- 本日の転換率プレビュー（対面率・主権率・商談率・獲得率）
+
+削除する項目:
+- 計画稼働日数（月初計画で設定済みのため不要）
+
+ボタン:
+- 日報をコピー（テキスト形式でクリップボードへ）
+- 保存する
+
+---
+
+### 📊 件数管理ページ (app/dashboard/stats/page.tsx)
+**最重要ページ・チームの件数を可視化**
+
+期間切り替え（上部タブ）:
+- 今月 / 今週 / 月選択（過去6ヶ月のドロップダウン）
+
+① チームサマリーカード（4枚）:
+- 現状獲得件数
+- 着地予想★（amber強調・最重要）
+- ペース判定（現状 - 今日時点のペース目標）
+- 必要件数/日
+
+② 着地予想ランキングバー（DOMINANT・大きく目立つ）:
+- 横棒グラフ・28px高さ
+- 色: 達成見込み→緑・80%以上→amber・未達→赤
+- 目標ラインを縦線で表示
+- 右側に件数と目標差バッジ（+n/-n）
+
+③ 現状件数ランキングバー（小さめ）:
+- 横棒グラフ・18px高さ・青色
+
+④ メンバー別詳細テーブル:
+- 横スクロール・氏名列スティッキー
+- 列: 氏名・目標・現状・着地★・目標差・実稼働・残稼働・生産性・必要/日・ペース
+- 着地列はamber色
+- 達成見込み行→薄緑背景・ペース遅れ行→薄赤背景
+- 合計行あり
+
+計算定義:
+- 着地予想 = round(生産性 × planDays)
+- 生産性 = 獲得 ÷ 実稼働日数
+- ペース判定 = 現状獲得 - round(目標 × 実稼働 ÷ planDays)
+- 必要/日 = ceil((目標 - 現状) ÷ 残稼働日数)
+
+---
+
+### 🔄 行動量管理ページ (app/dashboard/activity/page.tsx)
+**転換率をメンバー間で比較・参考にする**
+
+期間切り替え（今月・今週・月選択）
+
+① メンバー別転換率テーブル:
+- 列: 氏名・訪問数・対面率・主権率・商談率・獲得率・総転換率
+- 色分け: 高→緑・中→amber・低→赤
+- 件数が多い順にソート
+
+② 件数上位メンバーのハイライト:
+- 上位3名の転換率を大きく表示
+- 「この人を参考にしよう」メッセージ
+- どのステップが特に高いかを明示
+
+③ チーム転換率ファネル:
+- 訪問→対面→主権→商談→獲得の漏斗グラフ
+- チーム全体の数値
+
+---
+
+### 👤 個人分析ページ (app/dashboard/personal/page.tsx)
+**件数分析+行動量分析の統合・自分の弱点を把握**
+
+上部: メンバー選択（責任者は全員選択可・一般は自分のみ）
+
+件数分析セクション:
+- 目標・現状・着地予想・ペース判定をカードで表示
+- 達成率プログレスバー
+- 先月比（先月の最終着地との比較）
+- 推移グラフ（過去3ヶ月の獲得件数）
+
+行動量分析セクション:
+- 個人転換率ファネル（自分のステップ別転換率）
+- ボトルネック自動検出（最も低い転換率ステップを赤表示）
+- 上位メンバーとの比較（チームで件数上位3名の転換率と並べる）
+
+総合判定（自動テキスト生成）:
+- ロジック:
+  if 着地 >= 目標: "✅ 目標達成見込みです"
+  elif ペース遅れ AND 対面率が最低ステップ: "訪問から対面に繋げることがボトルネックです。{上位者}さんの対面率{n}%を参考にしてください"
+  など条件分岐でテキスト生成
+
+---
+
+### 📅 シフト管理ページ (app/dashboard/shift/page.tsx)
+**稼働状況の把握と提出**
+
+今日の稼働状況（常時表示・最上部）:
+- 稼働中: n名（緑バッジで名前一覧）
+- 休日: n名
+- 未設定: n名
+
+タブ:
+- シフト入力: 自分のカレンダー（タップで稼働/休日切替）
+- 全体確認: 全メンバーの月間シフトテーブル（今日列ハイライト）
+
+権限:
+- 一般: 自分のシフトのみ編集可
+- 責任者: 全員のシフト編集可・「責任者モード」バッジ表示
+
+---
+
+## データ構造
+
+### lib/calcStats.ts（共通計算ロジック・全ページから import）
+- getPeriodReports(reports, period)
+- calcMemberStats(name, reports, target, planDays)
+- calcTeamStats(memberStats, teamTarget)
+
+### lib/api.ts（GAS通信）
+- saveReport(data)
+- getReports(params)
+- getMonthlySummary(month)
+- getAvailableMonths()
+- saveShift(data)
+- getShifts(params)
+- getAccount(name, password)
+- adminUpdateReport(data, adminName)
+
+### Spreadsheet Sheets
+- reports: 日報・行動量データ
+- shifts: シフトデータ
+- メンバー設定: メンバー情報
+- 月次サマリー: GAS自動生成
+
+## 権限
+- 責任者（isManager=true）: 全メンバーのデータ閲覧・編集・修正
+- 一般メンバー: 自分のデータのみ
 
 ## 開発ルール
-- git push後にVercelが自動デプロイ
-- TypeScriptエラーはビルド失敗になるので必ずnpm run buildで確認
-- UNIT_PRICE・OPEN_RATEはlib/members.tsに定義（現在は未使用）
+- 必ずnpm run buildでエラーがないことを確認してからpush
+- lib/calcStats.ts を必ず使う（各ページで独自計算しない）
+- ページ間でデータ取得を重複させない
