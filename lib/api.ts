@@ -105,6 +105,15 @@ export async function saveMembersToGAS(members: any[]) {
   }
 }
 
+export function getAvailableMonths(reports: Record<string, unknown>[]): string[] {
+  const months = new Set<string>();
+  reports.forEach(r => {
+    const d = String(r.date).slice(0, 7);
+    if (/^\d{4}-\d{2}$/.test(d)) months.add(d);
+  });
+  return Array.from(months).sort().reverse();
+}
+
 export async function updatePasswordInGAS(
   id: string,
   currentPassword: string,

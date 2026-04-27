@@ -1,268 +1,462 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { MEMBERS as DEFAULT_MEMBERS } from '@/lib/members';
+import { MEMBERS, TEAM_TARGET as BASE_TEAM_TARGET } from '@/lib/members';
 import { loadMembers } from '@/lib/memberStore';
-import { getReports, getMembersFromGAS } from '@/lib/api';
+import { getReports, getMonthlySummary, getAvailableMonths } from '@/lib/api';
+import { calcMemberStats, calcTeamStats, getPeriodReports, MemberStats } from '@/lib/calcStats';
+
+type Period = 'month' | 'week' | string;
+
+// ── helpers ─────────────────────────────────────────────────────────────────
+
+function fmtMonth(ym: string): string {
+  const [y, m] = ym.split('-');
+  return `${y}年${parseInt(m)}月`;
+}
+
+function sign(v: number): string {
+  return v >= 0 ? `+${v}` : `${v}`;
+}
+
+function signF(v: number, digits = 1): string {
+  const s = v.toFixed(digits);
+  return v >= 0 ? `+${s}` : s;
+}
+
+function neededColor(v: number): string {
+  if (v > 1.5) return 'text-red-600';
+  if (v > 1.0) return 'text-amber-600';
+  return 'text-green-600';
+}
+
+function barColor(forecast: number, target: number): string {
+  if (forecast >= target)        return '#22c55e';
+  if (forecast >= target * 0.8)  return '#f59e0b';
+  return '#ef4444';
+}
+
+function RankCircle({ rank }: { rank: number }) {
+  const cls =
+    rank === 1 ? 'bg-yellow-400 text-yellow-900' :
+    rank === 2 ? 'bg-gray-300 text-gray-700' :
+    rank === 3 ? 'bg-amber-600 text-amber-100' :
+                 'bg-gray-200 text-gray-500';
+  return (
+    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${cls}`}>
+      {rank}
+    </div>
+  );
+}
+
+function RoleBadge({ role }: { role: string }) {
+  return (
+    <span className={`text-xs px-1.5 py-0.5 rounded-full shrink-0 ${
+      role === 'closer' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+    }`}>
+      {role === 'closer' ? 'CL' : 'AP'}
+    </span>
+  );
+}
+
+function GoalGapBadge({ gap }: { gap: number }) {
+  const cls = gap >= 0
+    ? 'bg-green-100 text-green-700'
+    : 'bg-red-100 text-red-600';
+  return (
+    <span className={`text-xs px-1.5 py-0.5 rounded-full shrink-0 font-medium ${cls}`}>
+      {sign(gap)}件
+    </span>
+  );
+}
+
+function SkeletonView() {
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="skeleton h-24 rounded-2xl" />
+        <div className="skeleton h-32 rounded-2xl" />
+        <div className="skeleton h-24 rounded-2xl" />
+        <div className="skeleton h-24 rounded-2xl" />
+      </div>
+      <div className="skeleton h-64 rounded-2xl" />
+      <div className="skeleton h-44 rounded-2xl" />
+      <div className="skeleton h-52 rounded-2xl" />
+    </div>
+  );
+}
+
+function EmptyState({ period }: { period: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+      <div className="text-4xl mb-3">📭</div>
+      <p className="text-base">{period}のデータがありません</p>
+    </div>
+  );
+}
+
+// ── main component ───────────────────────────────────────────────────────────
 
 export default function StatsPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [reports, setReports] = useState<any[]>([]);
+  const [allReports, setAllReports] = useState<Record<string, unknown>[]>([]);
+  const [members, setMembers] = useState(MEMBERS);
   const [loading, setLoading] = useState(true);
-  const [selectedMember, setSelectedMember] = useState('all');
-  const [members, setMembers] = useState(DEFAULT_MEMBERS);
-  const [lastUpdated, setLastUpdated] = useState<Date|null>(null);
-  const initialLoadDone = useRef(false);
-  const thisMonth = new Date().toISOString().slice(0, 7);
+  const [period, setPeriod] = useState<Period>('month');
+  const [availableMonths, setAvailableMonths] = useState<string[]>([]);
+  const [animated, setAnimated] = useState(false);
+  const initialDone = useRef(false);
+
+  const loadData = useCallback(async () => {
+    if (!initialDone.current) setLoading(true);
+    try {
+      const now = new Date();
+      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      // Warm up GAS monthlySummary endpoint in parallel
+      const [reports] = await Promise.all([
+        getReports(),
+        getMonthlySummary(currentMonth),
+      ]);
+      setAllReports(reports);
+      setAvailableMonths(getAvailableMonths(reports));
+      localStorage.setItem('reports', JSON.stringify(reports));
+    } finally {
+      setLoading(false);
+      initialDone.current = true;
+    }
+  }, []);
 
   useEffect(() => {
     const u = localStorage.getItem('user');
     if (!u) { router.push('/login'); return; }
-    setUser(JSON.parse(u));
-    setMembers(loadMembers());
-    getMembersFromGAS().then(data => {
-      if (data.length > 0) { localStorage.setItem('members', JSON.stringify(data)); setMembers(data); }
-    });
-    const stored = localStorage.getItem('reports');
-    if (stored) { setReports(JSON.parse(stored)); setLoading(false); initialLoadDone.current = true; }
-    loadReports();
 
-    const interval = setInterval(loadReports, 20000);
-    const onVisible = () => { if (document.visibilityState === 'visible') loadReports(); };
+    const m = loadMembers();
+    setMembers(m);
+
+    const stored = localStorage.getItem('reports');
+    if (stored) {
+      try {
+        const r = JSON.parse(stored) as Record<string, unknown>[];
+        setAllReports(r);
+        setAvailableMonths(getAvailableMonths(r));
+        setLoading(false);
+        initialDone.current = true;
+      } catch { /* ignore */ }
+    }
+    loadData();
+
+    const interval = setInterval(loadData, 20000);
+    const onVisible = () => { if (document.visibilityState === 'visible') loadData(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onVisible); };
-  }, []);
+  }, [loadData]);
 
-  const loadReports = async () => {
-    if (!initialLoadDone.current) setLoading(true);
-    try {
-      const data = await getReports();
-      setReports(data);
-      localStorage.setItem('reports', JSON.stringify(data));
-    } catch {
-      const stored = localStorage.getItem('reports');
-      if (stored) setReports(JSON.parse(stored));
-    } finally {
-      setLoading(false);
-      initialLoadDone.current = true;
-      setLastUpdated(new Date());
-    }
-  };
+  // Re-trigger bar animation on period change
+  useEffect(() => {
+    setAnimated(false);
+    const t = setTimeout(() => setAnimated(true), 80);
+    return () => clearTimeout(t);
+  }, [period]);
 
-  const getMemberStats = (name: string) => {
-    const mReports = reports.filter(r => r.name === name && r.date?.startsWith(thisMonth));
-    const acquired = mReports.reduce((s, r) => s + (Number(r.acquired) || 0), 0);
-    const worked = mReports.filter(r => Number(r.visits) > 0).length;
-    const visits = mReports.reduce((s, r) => s + (Number(r.visits) || 0), 0);
-    const netMeet = mReports.reduce((s, r) => s + (Number(r.netMeet) || 0), 0);
-    const mainMeet = mReports.reduce((s, r) => s + (Number(r.mainMeet) || 0), 0);
-    const negotiation = mReports.reduce((s, r) => s + (Number(r.negotiation) || 0), 0);
-    const member = members.find(m => m.name === name);
-    const target = member?.target || 0;
-    const prod = worked > 0 ? acquired / worked : 0;
-    const remain = 20 - worked;
-    const forecast = Math.round(prod * (worked + Math.max(remain, 0)));
-    const rate = target > 0 ? Math.round(acquired / target * 100) : 0;
-    const meetRate = visits > 0 ? Math.round(netMeet / visits * 100) : 0;
-    const getRate = netMeet > 0 ? Math.round(acquired / netMeet * 100) : 0;
-    const negRate = mainMeet > 0 ? Math.round(negotiation / mainMeet * 100) : 0;
-    return { acquired, worked, visits, netMeet, mainMeet, negotiation, prod: prod.toFixed(2), target, remain: Math.max(remain, 0), forecast, rate, meetRate, getRate, negRate };
-  };
+  // ── derived stats ──────────────────────────────────────────────────────────
 
-  const allStats = members.map(m => ({ name: m.name, role: m.role, id: m.id, ...getMemberStats(m.name) }))
-    .sort((a, b) => b.acquired - a.acquired);
+  const periodReports = getPeriodReports(allReports, period);
+  const memberStats   = members.map(m => calcMemberStats(periodReports, m, period));
+  const teamTarget    = memberStats.reduce((s, m) => s + m.target, 0) || BASE_TEAM_TARGET;
+  const teamStats     = calcTeamStats(memberStats, teamTarget);
 
-  const totalAcquired = allStats.reduce((s, m) => s + m.acquired, 0);
-  const totalVisits = allStats.reduce((s, m) => s + m.visits, 0);
-  const totalNetMeet = allStats.reduce((s, m) => s + m.netMeet, 0);
-  const totalMainMeet = allStats.reduce((s, m) => s + m.mainMeet, 0);
-  const totalNegotiation = allStats.reduce((s, m) => s + m.negotiation, 0);
-  const TEAM_TARGET = members.reduce((s, m) => s + m.target, 0);
-  const teamRate = Math.round(totalAcquired / TEAM_TARGET * 100);
-  const teamMeetRate = totalVisits > 0 ? Math.round(totalNetMeet / totalVisits * 100) : 0;
-  const teamGetRate = totalNetMeet > 0 ? Math.round(totalAcquired / totalNetMeet * 100) : 0;
+  const sortedForecast = [...memberStats].sort((a, b) => b.forecast - a.forecast);
+  const sortedAcquired = [...memberStats].sort((a, b) => b.acquired - a.acquired);
+  const maxForecast    = Math.max(...memberStats.map(m => m.forecast), 1);
+  const maxAcquired    = Math.max(...memberStats.map(m => m.acquired), 1);
 
-  const selected = selectedMember === 'all' ? null : allStats.find(m => m.name === selectedMember);
+  const isEmpty = periodReports.length === 0 && !loading;
+
+  const periodLabel =
+    period === 'month' ? '今月' :
+    period === 'week'  ? '今週' :
+    fmtMonth(period);
+
+  // ── render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen bg-gray-100">
+
+      {/* Header */}
       <div className="bg-gray-900 text-white px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => router.push('/dashboard')} className="text-gray-400 text-sm active:opacity-60 transition-opacity select-none">← 戻る</button>
-          <div className="font-bold text-blue-400">数値管理</div>
-          <span className="text-sm bg-gray-700 px-2 py-1 rounded-lg">{thisMonth.replace('-', '/')}</span>
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="text-gray-400 text-sm active:opacity-60 transition-opacity select-none"
+          >
+            ← 戻る
+          </button>
+          <div className="font-bold text-blue-400">件数管理</div>
+          <span className="text-sm bg-gray-700 px-2 py-0.5 rounded-lg">{periodLabel}</span>
         </div>
-        <div className="flex items-center gap-2">
-          {lastUpdated && <span className="text-xs text-gray-500">{lastUpdated.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</span>}
-          <button onClick={loadReports} className="text-xs text-gray-400 active:opacity-60 transition-opacity select-none">🔄</button>
+        <button onClick={loadData} className="text-gray-400 active:opacity-60 transition-opacity select-none">🔄</button>
+      </div>
+
+      {/* Period Selector — sticky */}
+      <div className="sticky top-0 z-10 bg-gray-100 px-4 pt-2 pb-2">
+        <div className="flex items-stretch bg-gray-200 rounded-xl p-1 gap-1 max-w-xs">
+          {(['month', 'week'] as const).map(p => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 select-none ${
+                period === p ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 active:bg-white/60'
+              }`}
+            >
+              {p === 'month' ? '今月' : '今週'}
+            </button>
+          ))}
+          <div className={`flex-1 rounded-lg transition-all duration-150 ${
+            !['month', 'week'].includes(period) ? 'bg-white shadow-sm' : ''
+          }`}>
+            <select
+              value={!['month', 'week'].includes(period) ? period : ''}
+              onChange={e => { if (e.target.value) setPeriod(e.target.value); }}
+              className="w-full h-full py-1.5 text-sm font-medium text-center bg-transparent outline-none cursor-pointer appearance-none"
+              style={{ color: !['month', 'week'].includes(period) ? '#111827' : '#6b7280' }}
+            >
+              <option value="">月選択</option>
+              {availableMonths.map(m => (
+                <option key={m} value={m}>{fmtMonth(m)}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
-      <div className="p-4 max-w-3xl mx-auto space-y-4 page-animate">
-
+      {/* Content */}
+      <div className="p-4 max-w-3xl mx-auto">
         {loading ? (
-          <>
-            <div className="grid grid-cols-3 gap-3">
-              {[...Array(3)].map((_,i) => <div key={i} className="skeleton h-24 rounded-2xl"/>)}
-            </div>
-            <div className="skeleton h-32 rounded-2xl"/>
-            <div className="skeleton h-16 rounded-2xl"/>
-            <div className="skeleton h-64 rounded-2xl"/>
-          </>
+          <SkeletonView />
+        ) : isEmpty ? (
+          <EmptyState period={periodLabel} />
         ) : (
-          <>
-            {/* チームKPI */}
-            <div className="grid grid-cols-3 gap-3">
-              <div className="bg-gray-900 text-white rounded-2xl p-4">
-                <div className="text-xs text-gray-400 mb-1">チーム獲得</div>
-                <div className="text-3xl font-bold text-blue-400">{totalAcquired}</div>
-                <div className="text-xs text-gray-400">目標 {TEAM_TARGET}件</div>
+          <div key={period} className="space-y-4 page-animate">
+
+            {/* ── Section 1: Team Summary Cards ── */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+
+              {/* Card 1: 現状獲得 */}
+              <div
+                className="bg-gray-900 text-white rounded-2xl p-4 flex flex-col gap-1"
+                style={{ opacity: animated ? 1 : 0, transform: animated ? 'none' : 'translateY(6px)', transition: 'opacity 300ms ease-out, transform 300ms ease-out' }}
+              >
+                <div className="text-xs text-gray-400">現状獲得</div>
+                <div className="text-3xl font-bold text-blue-400">{teamStats.totalAcquired}</div>
+                <div className="text-xs text-gray-400">目標 {teamTarget}件</div>
+                <div className="mt-1 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-400 rounded-full transition-all duration-[400ms] ease-out"
+                    style={{ width: animated ? `${Math.min(100, teamStats.totalAcquired / teamTarget * 100)}%` : '0%' }}
+                  />
+                </div>
               </div>
-              <div className="bg-white rounded-2xl p-4 shadow-sm">
-                <div className="text-xs text-gray-500 mb-1 font-medium">達成率</div>
-                <div className={`text-2xl font-bold ${teamRate >= 80 ? 'text-green-600' : teamRate >= 50 ? 'text-yellow-600' : 'text-red-500'}`}>{teamRate}%</div>
-                <div className="text-xs text-gray-400">残り{TEAM_TARGET - totalAcquired}件</div>
+
+              {/* Card 2: 着地予想 ★ (dominant) */}
+              <div
+                className="bg-white rounded-2xl p-4 flex flex-col gap-1 border-2 border-amber-400"
+                style={{ opacity: animated ? 1 : 0, transform: animated ? 'none' : 'translateY(6px)', transition: 'opacity 300ms ease-out 50ms, transform 300ms ease-out 50ms' }}
+              >
+                <div className="text-xs text-gray-500 font-medium">着地予想 ★</div>
+                <div className="text-3xl font-bold text-amber-500">{teamStats.teamForecast}</div>
+                {teamStats.goalGap >= 0 ? (
+                  <span className="text-xs px-1.5 py-0.5 self-start rounded-full bg-green-100 text-green-700 font-medium">
+                    {sign(Math.round(teamStats.goalGap))}件 達成見込み
+                  </span>
+                ) : (
+                  <span className="text-xs px-1.5 py-0.5 self-start rounded-full bg-red-100 text-red-600 font-medium">
+                    {Math.round(teamStats.goalGap)}件 未達見込み
+                  </span>
+                )}
               </div>
-              <div className="bg-white rounded-2xl p-4 shadow-sm">
-                <div className="text-xs text-gray-500 mb-1 font-medium">対面率</div>
-                <div className="text-2xl font-bold text-purple-600">{teamMeetRate}%</div>
-                <div className="text-xs text-gray-400">獲得率 {teamGetRate}%</div>
+
+              {/* Card 3: ペース判定 */}
+              <div
+                className="bg-white rounded-2xl p-4 flex flex-col gap-1 shadow-sm"
+                style={{ opacity: animated ? 1 : 0, transform: animated ? 'none' : 'translateY(6px)', transition: 'opacity 300ms ease-out 100ms, transform 300ms ease-out 100ms' }}
+              >
+                <div className="text-xs text-gray-500 font-medium">ペース判定</div>
+                <div className={`text-2xl font-bold ${teamStats.paceGap >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                  {signF(teamStats.paceGap, 1)}件
+                </div>
+                <div className="text-xs text-gray-400">今日時点の進捗</div>
+              </div>
+
+              {/* Card 4: 平均必要/日 */}
+              <div
+                className="bg-white rounded-2xl p-4 flex flex-col gap-1 shadow-sm"
+                style={{ opacity: animated ? 1 : 0, transform: animated ? 'none' : 'translateY(6px)', transition: 'opacity 300ms ease-out 150ms, transform 300ms ease-out 150ms' }}
+              >
+                <div className="text-xs text-gray-500 font-medium">平均必要/日</div>
+                <div className={`text-2xl font-bold ${neededColor(teamStats.avgNeededPerDay)}`}>
+                  {teamStats.avgNeededPerDay.toFixed(1)}件
+                </div>
+                <div className="text-xs text-gray-400">残り{teamStats.avgRemainDays}日</div>
               </div>
             </div>
 
-            {/* チーム行動量合計 */}
-            <div className="bg-white rounded-2xl p-4 shadow-sm">
-              <div className="font-bold text-gray-800 mb-3">📊 チーム行動量合計</div>
-              <div className="grid grid-cols-5 gap-2 text-center">
-                {[
-                  { label: '訪問数', val: totalVisits, color: 'bg-blue-50 text-blue-700' },
-                  { label: '対面数', val: totalNetMeet, color: 'bg-purple-50 text-purple-700' },
-                  { label: '主権対面', val: totalMainMeet, color: 'bg-indigo-50 text-indigo-700' },
-                  { label: '商談', val: totalNegotiation, color: 'bg-orange-50 text-orange-700' },
-                  { label: '獲得数', val: totalAcquired, color: 'bg-green-50 text-green-700' },
-                ].map(item => (
-                  <div key={item.label} className={`${item.color} rounded-xl p-3`}>
-                    <div className="text-xs font-medium">{item.label}</div>
-                    <div className="font-bold text-xl">{item.val}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* メンバー選択 */}
-            <div className="bg-white rounded-2xl p-4 shadow-sm">
-              <div className="font-bold text-gray-800 mb-3">メンバーを選択</div>
-              <div className="flex flex-wrap gap-2">
-                <button onClick={() => setSelectedMember('all')}
-                  className={`px-3 py-1.5 rounded-full text-sm font-medium active:scale-95 transition-all duration-150 select-none ${selectedMember === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>
-                  全員
-                </button>
-                {members.map(m => (
-                  <button key={m.id} onClick={() => setSelectedMember(m.name)}
-                    className={`px-3 py-1.5 rounded-full text-sm font-medium active:scale-95 transition-all duration-150 select-none ${selectedMember === m.name ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>
-                    {m.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* 個人詳細 */}
-            {selected && (
-              <div className="bg-white rounded-2xl p-4 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <div className="text-xl font-bold text-gray-900">{selected.name}</div>
-                    <div className="text-sm text-gray-500">{selected.role === 'closer' ? 'クローザー' : 'アポインター'}</div>
-                  </div>
-                  <div className={`px-3 py-1 rounded-full text-sm font-bold ${selected.rate >= 80 ? 'bg-green-100 text-green-700' : selected.rate >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
-                    {selected.rate}%
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-3 mb-4">
-                  {[
-                    { label: '目標', value: `${selected.target}件` },
-                    { label: '現在', value: `${selected.acquired}件`, color: 'text-blue-600' },
-                    { label: '着地予測', value: `${selected.forecast}件`, color: 'text-orange-500' },
-                    { label: '生産性', value: `${selected.prod}件/日` },
-                    { label: '実稼働', value: `${selected.worked}日` },
-                    { label: '残稼働', value: `${selected.remain}日`, color: selected.remain <= 5 ? 'text-red-500' : '' },
-                  ].map(item => (
-                    <div key={item.label} className="bg-gray-50 rounded-xl p-3">
-                      <div className="text-xs text-gray-500">{item.label}</div>
-                      <div className={`font-bold text-lg ${item.color || 'text-gray-900'}`}>{item.value}</div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="border-t pt-3">
-                  <div className="font-bold text-gray-700 text-sm mb-2">行動量・各種率</div>
-                  {[
-                    { label: '訪問数', value: selected.visits },
-                    { label: '対面数', value: selected.netMeet },
-                    { label: '主権対面', value: selected.mainMeet },
-                    { label: '商談', value: selected.negotiation },
-                    { label: '獲得数', value: selected.acquired },
-                    { label: '対面率（訪問→対面）', value: `${selected.meetRate}%` },
-                    { label: '主権→商談率', value: `${selected.negRate}%` },
-                    { label: '獲得率（対面→獲得）', value: `${selected.getRate}%` },
-                  ].map(item => (
-                    <div key={item.label} className="flex justify-between py-2 border-b last:border-0">
-                      <span className="text-sm text-gray-600">{item.label}</span>
-                      <span className="font-bold text-gray-900">{item.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* 全体ランキングテーブル */}
+            {/* ── Section 2: 着地予想ランキング ── */}
             <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-              <div className="font-bold text-gray-800 p-4 border-b">📋 メンバー別数値一覧</div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-800 text-white">
-                    <tr>
-                      {['氏名', '目標', '現在', '達成率', '着地', '生産性', '実稼働', '対面率', '獲得率'].map(h => (
-                        <th key={h} className="px-2 py-2 text-left text-xs whitespace-nowrap">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {allStats.map((m, i) => (
-                      <tr key={m.name}
-                        className={`border-b cursor-pointer active:bg-blue-50 transition-colors ${selectedMember === m.name ? 'bg-blue-50' : i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
-                        onClick={() => setSelectedMember(m.name === selectedMember ? 'all' : m.name)}>
-                        <td className="px-2 py-2.5 font-bold text-gray-900">{m.name}</td>
-                        <td className="px-2 py-2.5 text-gray-700">{m.target}</td>
-                        <td className="px-2 py-2.5 font-bold text-blue-600">{m.acquired}</td>
-                        <td className="px-2 py-2.5">
-                          <span className={`font-bold ${m.rate >= 80 ? 'text-green-600' : m.rate >= 50 ? 'text-yellow-600' : 'text-red-500'}`}>{m.rate}%</span>
-                        </td>
-                        <td className="px-2 py-2.5 text-orange-500 font-bold">{m.forecast}</td>
-                        <td className="px-2 py-2.5 text-gray-700">{m.prod}</td>
-                        <td className="px-2 py-2.5 text-gray-700">{m.worked}日</td>
-                        <td className="px-2 py-2.5 text-purple-600">{m.meetRate}%</td>
-                        <td className="px-2 py-2.5 text-green-600">{m.getRate}%</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="bg-gray-100 font-bold">
-                    <tr>
-                      <td className="px-2 py-2 text-gray-900">合計</td>
-                      <td className="px-2 py-2">{TEAM_TARGET}</td>
-                      <td className="px-2 py-2 text-blue-600">{totalAcquired}</td>
-                      <td className="px-2 py-2">{teamRate}%</td>
-                      <td colSpan={3}></td>
-                      <td className="px-2 py-2 text-purple-600">{teamMeetRate}%</td>
-                      <td className="px-2 py-2 text-green-600">{teamGetRate}%</td>
-                    </tr>
-                  </tfoot>
-                </table>
+              <div className="p-4 border-b border-l-4 border-l-amber-400">
+                <div className="font-bold text-gray-900">着地予想ランキング</div>
+                <div className="text-xs text-gray-400 mt-0.5">このペースで月末に何件取れるか</div>
+              </div>
+              <div className="p-4 space-y-3">
+                {sortedForecast.map((m, i) => {
+                  const pct = (m.forecast / maxForecast) * 100;
+                  const targetPct = Math.min(100, (m.target / maxForecast) * 100);
+                  const color = barColor(m.forecast, m.target);
+                  return (
+                    <div
+                      key={m.name}
+                      className="flex items-center gap-2"
+                      style={{ height: 52 }}
+                    >
+                      {/* Left: rank + name + role */}
+                      <div className="flex items-center gap-1.5 w-28 shrink-0">
+                        <RankCircle rank={i + 1} />
+                        <span className="text-sm font-bold text-gray-900 truncate">{m.name}</span>
+                        <RoleBadge role={m.role} />
+                      </div>
+
+                      {/* Center: bar */}
+                      <div className="relative flex-1 h-6">
+                        <div className="absolute inset-0 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full"
+                            style={{
+                              width: animated ? `${pct}%` : '0%',
+                              backgroundColor: color,
+                              transition: `width 400ms ease-out ${i * 40}ms`,
+                            }}
+                          />
+                        </div>
+                        {/* Target line */}
+                        <div
+                          className="absolute top-0 bottom-0 w-px"
+                          style={{
+                            left: `${targetPct}%`,
+                            borderLeft: '2px dashed #9ca3af',
+                          }}
+                        />
+                      </div>
+
+                      {/* Right: forecast + gap */}
+                      <div className="flex items-center gap-1 shrink-0 w-20 justify-end">
+                        <span className="text-sm font-bold text-gray-900">{m.forecast}件</span>
+                        <GoalGapBadge gap={m.goalGap} />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-          </>
+
+            {/* ── Section 3: 現状件数ランキング ── */}
+            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+              <div className="p-4 border-b">
+                <div className="font-bold text-gray-900 text-sm">現状獲得ランキング</div>
+              </div>
+              <div className="p-4 space-y-2">
+                {sortedAcquired.map((m, i) => {
+                  const pct = (m.acquired / maxAcquired) * 100;
+                  return (
+                    <div key={m.name} className="flex items-center gap-2" style={{ height: 40 }}>
+                      <div className="flex items-center gap-1.5 w-28 shrink-0">
+                        <RankCircle rank={i + 1} />
+                        <span className="text-sm font-medium text-gray-800 truncate">{m.name}</span>
+                      </div>
+                      <div className="flex-1 h-[22px] bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-blue-500 rounded-full"
+                          style={{
+                            width: animated ? `${pct}%` : '0%',
+                            transition: `width 400ms ease-out ${i * 40}ms`,
+                          }}
+                        />
+                      </div>
+                      <span className="text-sm font-bold text-blue-600 w-12 text-right shrink-0">
+                        {m.acquired}件
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ── Section 4: Detail Table ── */}
+            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+              <div className="p-4 border-b font-bold text-gray-900 text-sm">メンバー詳細</div>
+              <div className="relative">
+                <div className="overflow-x-auto">
+                  <table className="text-xs w-full">
+                    <thead className="bg-gray-800 text-white">
+                      <tr>
+                        {['氏名', '目標', '現状', '着地★', '目標差', '実稼働', '残稼働', '生産性', '必要/日', 'ペース'].map(h => (
+                          <th
+                            key={h}
+                            className={`px-2 py-2 text-left whitespace-nowrap ${h === '氏名' ? 'sticky left-0 z-10 bg-gray-800' : ''}`}
+                          >
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {memberStats.map((m, i) => {
+                        const rowBg =
+                          m.forecast >= m.target ? 'bg-green-50' :
+                          m.paceGap < -2          ? 'bg-red-50' :
+                          i % 2 === 0             ? 'bg-white' : 'bg-gray-50';
+                        return (
+                          <tr key={m.name} className={`border-b ${rowBg}`}>
+                            <td className={`px-2 py-2.5 font-bold text-gray-900 whitespace-nowrap sticky left-0 z-10 ${rowBg}`}>
+                              {m.name}
+                            </td>
+                            <td className="px-2 py-2.5 text-gray-600 whitespace-nowrap">{m.target}</td>
+                            <td className="px-2 py-2.5 font-bold text-blue-600 whitespace-nowrap">{m.acquired}</td>
+                            <td className="px-2 py-2.5 font-bold text-amber-600 whitespace-nowrap">{m.forecast}</td>
+                            <td className={`px-2 py-2.5 font-bold whitespace-nowrap ${m.goalGap >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                              {sign(m.goalGap)}
+                            </td>
+                            <td className="px-2 py-2.5 text-gray-600 whitespace-nowrap">{m.workedDays}日</td>
+                            <td className="px-2 py-2.5 text-gray-600 whitespace-nowrap">{m.remainDays}日</td>
+                            <td className="px-2 py-2.5 text-gray-700 whitespace-nowrap">{m.productivity.toFixed(2)}</td>
+                            <td className={`px-2 py-2.5 font-medium whitespace-nowrap ${neededColor(m.neededPerDay)}`}>
+                              {m.neededPerDay.toFixed(1)}
+                            </td>
+                            <td className={`px-2 py-2.5 font-medium whitespace-nowrap ${m.paceGap >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                              {signF(m.paceGap, 1)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="bg-gray-100 font-bold border-t-2">
+                      <tr>
+                        <td className="px-2 py-2 text-gray-900 sticky left-0 z-10 bg-gray-100 whitespace-nowrap">チーム</td>
+                        <td className="px-2 py-2 text-gray-700 whitespace-nowrap">{teamTarget}</td>
+                        <td className="px-2 py-2 text-blue-600 whitespace-nowrap">{teamStats.totalAcquired}</td>
+                        <td className="px-2 py-2 text-amber-600 whitespace-nowrap">{teamStats.teamForecast}</td>
+                        <td className={`px-2 py-2 whitespace-nowrap ${teamStats.goalGap >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                          {sign(Math.round(teamStats.goalGap))}
+                        </td>
+                        <td colSpan={5} />
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+                {/* Right scroll shadow hint */}
+                <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-white/80 to-transparent" />
+              </div>
+            </div>
+
+          </div>
         )}
       </div>
     </div>
