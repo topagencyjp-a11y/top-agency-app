@@ -5,190 +5,185 @@ au光販売代理店向け営業管理アプリ。
 メンバーが日報・行動量を入力し、個人・チーム数値を可視化する。
 
 ## 技術スタック
-- Next.js (App Router) + TypeScript + Tailwind CSS
-- Vercel デプロイ
-- データ: GAS経由でGoogleスプレッドシートに保存
-- 認証: JWT
+- Next.js 16 (App Router) + TypeScript + Tailwind CSS
+- デプロイ: Vercel（git push → 自動デプロイ）
+- データ保存: GAS (Google Apps Script) 経由で Google スプレッドシートに保存
+- 認証: JWT (jsonwebtoken) 7日間有効
 
-## URL情報
-- 本番: https://top-agency-jp.vercel.app
+## URL・認証情報
+- 本番: https://topagency-sales-app.vercel.app
 - GitHub: https://github.com/topagencyjp-a11y/top-agency-app
-- GAS URL: https://script.google.com/macros/s/AKfycbWYGlW-oq8FIAdsHhin4pqUZICN_Ju39mhwkyohDBi3LIFZUZUklNaVMxrluRC05oOCvw/exec
+- 共通パスワード: top2024
+- 管理者パスワード: topMgr2024!（GAS内の MANAGER_PASSWORD）
+- JWT_SECRET: 環境変数 or デフォルト 'top-sales-secret'
+- GAS URL: lib/api.ts の GAS_URL 定数を参照（CLAUDE.md には書かない・ズレるため）
 
-## メンバー構成
+## メンバー構成 (lib/members.ts)
 - クローザー（目標15件）: プラ・岩永・橋本・高木
 - アポインター→クローザー（目標10件）: 長谷川・中西
 - アポインター（目標5件）: 佐藤・小島
-- チーム月間目標: 80件
-
-## ページ構成（これが唯一の正解）
-
-### ナビゲーション（5ページ固定）
-✏️ 入力 | 📊 件数管理 | 🔄 行動量管理 | 👤 個人分析 | 📅 シフト
-
-### 不要なページ（削除する）
-- conversion/page.tsx → 個人分析に統合
-- reports/page.tsx → 入力ページに統合
-- daily/page.tsx → 削除
-- settings/page.tsx → シフトページのメニューに移動
-- dashboard/page.tsx の分析・全体タブ → 各専用ページに移行
+- チーム月間目標: TEAM_TARGET = 80件（静的定数）
+- 実際のチーム目標: members.reduce((s,m) => s + m.target, 0) で動的に算出
 
 ---
 
-## 各ページ詳細仕様
+## ページ構成（現在の実装）
 
-### ✏️ 入力ページ (app/dashboard/page.tsx)
-**メンバーが毎日使うページ**
+### ナビゲーション
+現状: layout.tsx はラッパーのみ（ボトムナビ未実装）
+各ページはヘッダーの「← 戻る」で dashboard に戻る構造
+ドロワーメニュー（dashboard/page.tsx 右上 ☰）から各ページへ遷移
 
-入力項目（必要最小限）:
-- 日付選択（前後移動・カレンダー）
-- 稼働開始・終了時刻
-- 行動量5項目: 訪問数・対面数・主権対面数・商談数・獲得数
-- 獲得エリア: 獲得数に連動してタブが増える（獲得1件→1タブ、2件→2タブ）
-  エリア入力は大阪府の市区町村をサジェスト表示
-- 日報テキスト6項目:
-  獲得案件・失注案件・よかった点・課題・改善・学び
-- 感謝（任意・折りたたみ）
+### ページ一覧
 
-自動計算してリアルタイム表示（入力不要）:
-- 本日の転換率プレビュー（対面率・主権率・商談率・獲得率）
-
-削除する項目:
-- 計画稼働日数（月初計画で設定済みのため不要）
-
-ボタン:
-- 日報をコピー（テキスト形式でクリップボードへ）
-- 保存する
+| パス | 役割 | 状態 |
+|---|---|---|
+| app/dashboard/page.tsx | 入力・個人・分析・全体の4タブ | 実装済み（要改善） |
+| app/dashboard/stats/page.tsx | 件数管理 | ✅ 完成（2025-04-27 再構築）|
+| app/dashboard/conversion/page.tsx | 転換率分析・ボトルネック・改善TIPS | 実装済み |
+| app/dashboard/reports/page.tsx | 日報一覧・展開閲覧・コピー | 実装済み |
+| app/dashboard/shift/page.tsx | シフト入力・全体確認 | 実装済み |
+| app/dashboard/daily/page.tsx | 日別稼働グリッド（全員カレンダー） | 実装済み |
+| app/dashboard/settings/page.tsx | メンバー管理・パスワード変更 | 実装済み |
+| app/login/page.tsx | ログイン（氏名選択＋パスワード） | 実装済み |
 
 ---
 
-### 📊 件数管理ページ (app/dashboard/stats/page.tsx)
-**最重要ページ・チームの件数を可視化**
+## 各ページ詳細
 
-期間切り替え（上部タブ）:
-- 今月 / 今週 / 月選択（過去6ヶ月のドロップダウン）
+### ✏️ dashboard/page.tsx（メインページ・4タブ）
+**メンバーが毎日使う最重要ページ**
 
-① チームサマリーカード（4枚）:
-- 現状獲得件数
-- 着地予想★（amber強調・最重要）
-- ペース判定（現状 - 今日時点のペース目標）
-- 必要件数/日
+タブ構成:
+- **入力タブ**: 日付切替・稼働時間・行動量5項目・獲得エリア選択・日報6項目・感謝・コピー/保存
+- **個人タブ**: KPI・達成率・着地予測・行動量合計・対面率・獲得率（責任者は他メンバー閲覧可）
+- **分析タブ**: 転換率ファネル（訪問→対面→主権→商談→契約）・メンバー別転換率
+- **全体タブ**: チームKPI・着地予測・ランキングバー・行動量グリッド・メンバー別テーブル
 
-② 着地予想ランキングバー（DOMINANT・大きく目立つ）:
-- 横棒グラフ・28px高さ
-- 色: 達成見込み→緑・80%以上→amber・未達→赤
-- 目標ラインを縦線で表示
-- 右側に件数と目標差バッジ（+n/-n）
+入力フォーム state:
+```typescript
+{ visits, netMeet, mainMeet, negotiation, acquired,
+  startTime, endTime,
+  acquiredCase, lostCase, goodPoints, issues, improvements, learnings,
+  gratitude, planDays,  // planDays は今も存在（月初設定フロー未実装のため）
+  area1〜area10 }
+```
 
-③ 現状件数ランキングバー（小さめ）:
-- 横棒グラフ・18px高さ・青色
+ドロワーメニュー（☰）からのリンク:
+- シフト提出 → /dashboard/shift
+- シフト提出確認 → /dashboard/shift?view=confirm
+- 日別稼働 → /dashboard/daily
+- 日報管理 → /dashboard/reports
+- 設定 → /dashboard/settings
 
-④ メンバー別詳細テーブル:
-- 横スクロール・氏名列スティッキー
-- 列: 氏名・目標・現状・着地★・目標差・実稼働・残稼働・生産性・必要/日・ペース
-- 着地列はamber色
-- 達成見込み行→薄緑背景・ペース遅れ行→薄赤背景
-- 合計行あり
+### 📊 stats/page.tsx（件数管理）
+期間セレクター（今月/今週/月選択）＋4カードサマリー＋2つのランキングバー＋詳細テーブル
+lib/calcStats.ts を使用。20秒自動ポーリング。
 
-計算定義:
-- 着地予想 = round(生産性 × planDays)
-- 生産性 = 獲得 ÷ 実稼働日数
-- ペース判定 = 現状獲得 - round(目標 × 実稼働 ÷ planDays)
-- 必要/日 = ceil((目標 - 現状) ÷ 残稼働日数)
+### 🔄 conversion/page.tsx（転換率分析）
+転換率ファネル・ボトルネック検出・各ステップ別改善TIPS（TIPS定数で管理）
+メンバー別転換率テーブル。
 
----
+### 📝 reports/page.tsx（日報管理）
+月別・メンバー別フィルタ。展開/折りたたみ。クリップボードコピー。
 
-### 🔄 行動量管理ページ (app/dashboard/activity/page.tsx)
-**転換率をメンバー間で比較・参考にする**
+### 📅 shift/page.tsx（シフト管理）
+- submit ビュー: 自分のカレンダー（タップで稼働/休日切替）
+- confirm ビュー: 全メンバーの月間シフトテーブル（今日列ハイライト）
+- 今月の稼働日数カウント表示
 
-期間切り替え（今月・今週・月選択）
+### 📆 daily/page.tsx（日別稼働グリッド）
+全メンバー × 月全日のグリッド。シフト状態＋報告有無を一覧表示。
+責任者がチーム全体の活動状況を把握するためのビュー。
 
-① メンバー別転換率テーブル:
-- 列: 氏名・訪問数・対面率・主権率・商談率・獲得率・総転換率
-- 色分け: 高→緑・中→amber・低→赤
-- 件数が多い順にソート
-
-② 件数上位メンバーのハイライト:
-- 上位3名の転換率を大きく表示
-- 「この人を参考にしよう」メッセージ
-- どのステップが特に高いかを明示
-
-③ チーム転換率ファネル:
-- 訪問→対面→主権→商談→獲得の漏斗グラフ
-- チーム全体の数値
-
----
-
-### 👤 個人分析ページ (app/dashboard/personal/page.tsx)
-**件数分析+行動量分析の統合・自分の弱点を把握**
-
-上部: メンバー選択（責任者は全員選択可・一般は自分のみ）
-
-件数分析セクション:
-- 目標・現状・着地予想・ペース判定をカードで表示
-- 達成率プログレスバー
-- 先月比（先月の最終着地との比較）
-- 推移グラフ（過去3ヶ月の獲得件数）
-
-行動量分析セクション:
-- 個人転換率ファネル（自分のステップ別転換率）
-- ボトルネック自動検出（最も低い転換率ステップを赤表示）
-- 上位メンバーとの比較（チームで件数上位3名の転換率と並べる）
-
-総合判定（自動テキスト生成）:
-- ロジック:
-  if 着地 >= 目標: "✅ 目標達成見込みです"
-  elif ペース遅れ AND 対面率が最低ステップ: "訪問から対面に繋げることがボトルネックです。{上位者}さんの対面率{n}%を参考にしてください"
-  など条件分岐でテキスト生成
-
----
-
-### 📅 シフト管理ページ (app/dashboard/shift/page.tsx)
-**稼働状況の把握と提出**
-
-今日の稼働状況（常時表示・最上部）:
-- 稼働中: n名（緑バッジで名前一覧）
-- 休日: n名
-- 未設定: n名
-
-タブ:
-- シフト入力: 自分のカレンダー（タップで稼働/休日切替）
-- 全体確認: 全メンバーの月間シフトテーブル（今日列ハイライト）
-
-権限:
-- 一般: 自分のシフトのみ編集可
-- 責任者: 全員のシフト編集可・「責任者モード」バッジ表示
+### ⚙️ settings/page.tsx（設定）
+- メンバー追加・編集（名前・役割・月間目標・責任者フラグ）・削除
+- デフォルトメンバーへリセット
+- パスワード変更（GAS経由で更新）
+- 責任者のみアクセス可（isManager チェック）
 
 ---
 
 ## データ構造
 
-### lib/calcStats.ts（共通計算ロジック・全ページから import）
-- getPeriodReports(reports, period)
-- calcMemberStats(name, reports, target, planDays)
-- calcTeamStats(memberStats, teamTarget)
+### GASスプレッドシート シート構成
 
-### lib/api.ts（GAS通信）
-- saveReport(data)
-- getReports(params)
-- getMonthlySummary(month)
-- getAvailableMonths()
-- saveShift(data)
-- getShifts(params)
-- getAccount(name, password)
-- adminUpdateReport(data, adminName)
+#### reports シート
+```
+name, date, visits, netMeet, mainMeet, negotiation, acquired,
+startTime, endTime, acquiredCase, lostCase, goodPoints, issues,
+improvements, learnings, gratitude, planDays,
+area1〜area10,
+updatedAt, updatedBy
+```
+- name+date でUPSERT
+- saveReport 実行時に updatedAt/updatedBy を自動書き込み
+- saveReport 実行時に updateMonthlySummary を自動呼び出し
 
-### Spreadsheet Sheets
-- reports: 日報・行動量データ
-- shifts: シフトデータ
-- メンバー設定: メンバー情報
-- 月次サマリー: GAS自動生成
+#### shifts シート
+`name, date, status, updatedAt, updatedBy`
+- status: '稼働' | '休日' | ''
 
-## 権限
-- 責任者（isManager=true）: 全メンバーのデータ閲覧・編集・修正
-- 一般メンバー: 自分のデータのみ
+#### メンバー設定 シート
+`id, name, role, target, isManager, password, planDays`
+
+#### 月次サマリー シート（GAS自動生成）
+`month, name, totalVisits, totalNetMeet, totalMainMeet, totalNegotiation, totalAcquired, workedDays, productivity, forecast, meetRate, getRate, updatedAt`
+
+### lib/calcStats.ts（共通計算ロジック）
+```typescript
+getPeriodReports(reports, period)   // 今月/今週/YYYY-MM でフィルタ
+calcMemberStats(periodReports, member, period) // 個人統計
+calcTeamStats(memberStats, teamTarget)         // チーム統計
+```
+- period = 'month' | 'week' | 'YYYY-MM'
+- 週間期間は月間目標を÷4換算したperiodTargetを使用
+- 全ページでこの関数を使う（各ページで独自計算しない）
+
+### lib/api.ts（GAS通信関数）
+```typescript
+saveReport(data)
+getReports(params?)          // { name?, month?, week? } または文字列
+getMonthlySummary(month)
+getAvailableMonths(reports)  // ローカル計算（同期関数）
+saveShift(name, date, status)
+getShifts()
+getMembersFromGAS()
+saveMembersToGAS(members)
+updatePasswordInGAS(id, current, next)
+adminUpdateReport(data, adminName)
+```
+
+---
+
+## 権限設計
+- **責任者** (isManager=true): 全メンバーのデータ閲覧・編集・修正・設定ページアクセス
+- **一般メンバー**: 自分のデータのみ（個人タブで他人閲覧不可）
+- **管理者パスワード**: topMgr2024! でログインすると isManager=true 扱い
+
+---
+
+## 実装パターン（全ページ共通）
+
+### データロード
+```typescript
+// 起動時: localStorageキャッシュ → 即時表示
+// バックグラウンド: GAS fetch → 更新
+// 20秒ポーリング + visibilitychange で自動更新
+// formDirty.current が true の間は入力中フォームを上書きしない
+```
+
+### バックグラウンド同期
+```typescript
+const initialLoadDone = useRef(false);
+const formDirty = useRef(false);  // 入力中フラグ（inputページ）
+```
+
+---
 
 ## 開発ルール
-- 必ずnpm run buildでエラーがないことを確認してからpush
-- lib/calcStats.ts を必ず使う（各ページで独自計算しない）
-- ページ間でデータ取得を重複させない
+- `npm run build` でエラーがないことを確認してから push
+- TypeScript strict モード（strict: true）
+- lib/calcStats.ts を必ず使う（各ページで独自の計算ロジックを書かない）
+- any 型は最小限に（GAS レスポンス等やむを得ない箇所のみ）
+- コメントは WHY が非自明な場合のみ（WHAT は書かない）
