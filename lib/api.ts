@@ -21,14 +21,45 @@ export async function saveReport(data: any) {
   }
 }
 
-export async function getReports(name?: string) {
+export async function getReports(
+  params?: { name?: string; month?: string; week?: string } | string
+) {
   try {
-    const url = name ? `${GAS_URL}?action=getReports&name=${encodeURIComponent(name)}` : `${GAS_URL}?action=getReports`;
-    const res = await fetch(url);
+    const p = typeof params === 'string' ? { name: params } : (params || {});
+    const query = new URLSearchParams({ action: 'getReports' });
+    if (p.name)  query.set('name',  p.name);
+    if (p.month) query.set('month', p.month);
+    if (p.week)  query.set('week',  p.week);
+    const res = await fetch(`${GAS_URL}?${query}`);
     const data = await res.json();
     return data.reports || [];
-  } catch (e) {
+  } catch {
     return [];
+  }
+}
+
+export async function getMonthlySummary(month: string) {
+  try {
+    const res = await fetch(`${GAS_URL}?action=getMonthlySummary&month=${encodeURIComponent(month)}`);
+    const data = await res.json();
+    return data.summary || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function adminUpdateReport(
+  data: any,
+  adminName: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'adminUpdateReport', ...data, adminName }),
+    });
+    return await res.json();
+  } catch {
+    return { success: false, error: '通信エラー' };
   }
 }
 
@@ -48,7 +79,7 @@ export async function getShifts() {
     const res = await fetch(`${GAS_URL}?action=getShifts`);
     const data = await res.json();
     return (data.shifts || []).map((s: any) => ({ ...s, date: toLocalDateStr(String(s.date)) }));
-  } catch (e) {
+  } catch {
     return [];
   }
 }
@@ -74,7 +105,11 @@ export async function saveMembersToGAS(members: any[]) {
   }
 }
 
-export async function updatePasswordInGAS(id: string, currentPassword: string, newPassword: string): Promise<{ success: boolean; error?: string }> {
+export async function updatePasswordInGAS(
+  id: string,
+  currentPassword: string,
+  newPassword: string
+): Promise<{ success: boolean; error?: string }> {
   try {
     const res = await fetch(GAS_URL, {
       method: 'POST',
