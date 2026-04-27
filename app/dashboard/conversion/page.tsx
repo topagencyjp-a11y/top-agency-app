@@ -107,7 +107,6 @@ export default function ConversionPage() {
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="bg-gray-900 text-white px-4 py-3 flex items-center gap-3">
-        <button onClick={() => router.push('/dashboard')} className="text-gray-400 hover:text-white text-sm">← 戻る</button>
         <div className="font-bold text-blue-400">転換率分析</div>
         <span className="text-sm bg-gray-700 px-2 py-1 rounded">{thisMonth.replace('-', '/')}</span>
       </div>
