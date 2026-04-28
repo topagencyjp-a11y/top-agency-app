@@ -35,28 +35,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="fixed inset-0 z-40 bg-black/40" onClick={closeMore} />
       )}
 
-      {/* フローティング「その他」ボタン — ナビの右上に固定 */}
-      <button
-        onClick={() => setShowMore(v => !v)}
-        className={`fixed bottom-20 right-4 z-50 w-10 h-10 rounded-full shadow-lg flex items-center justify-center text-lg transition-all active:scale-95 select-none ${
-          isMoreActive || showMore
-            ? 'bg-blue-600 text-white'
-            : 'bg-white text-gray-500 border border-gray-200'
-        }`}
-      >
-        {showMore ? '✕' : '⋯'}
-      </button>
-
-      {/* その他シート — 画面下からスライドアップ */}
+      {/* シート — bottom-0 から上にスライド（ナビは常にその上に重なる） */}
       <div
-        className={`fixed left-0 right-0 bottom-16 z-[60] bg-white rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out ${
+        className={`fixed left-0 right-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out ${
           showMore ? 'translate-y-0' : 'translate-y-full pointer-events-none'
         }`}
       >
         <div className="flex justify-center pt-2 pb-1">
           <div className="w-10 h-1 bg-gray-200 rounded-full" />
         </div>
-        <div className="px-4 pt-2 pb-8">
+        {/* pb-20 でナビの高さ分を確保 */}
+        <div className="px-4 pt-2 pb-20">
           <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">その他のページ</p>
           <div className="grid grid-cols-4 gap-3">
             {MORE_PAGES.map(p => (
@@ -78,8 +67,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </div>
 
-      {/* ボトムナビ（5タブ固定） */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 safe-area-pb">
+      {/* フローティング ⋯ ボタン（シートより上・ナビより上） */}
+      <button
+        onClick={() => setShowMore(v => !v)}
+        className={`fixed bottom-20 right-4 z-[70] w-10 h-10 rounded-full shadow-lg flex items-center justify-center text-base font-bold transition-all active:scale-95 select-none ${
+          isMoreActive || showMore
+            ? 'bg-blue-600 text-white'
+            : 'bg-white text-gray-500 border border-gray-200'
+        }`}
+      >
+        {showMore ? '✕' : '⋯'}
+      </button>
+
+      {/* ボトムナビ — 最前面（z-[60]）で常に5タブを表示 */}
+      <nav className="fixed bottom-0 left-0 right-0 z-[60] bg-white border-t border-gray-200 safe-area-pb">
         <div className="flex max-w-lg mx-auto">
           {NAV.map(item => {
             const on = active(item.href, item.exact);
