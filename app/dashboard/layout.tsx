@@ -41,7 +41,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* その他シート — ナビ上からスライドアップ */}
       <div
         className={`fixed left-0 right-0 bottom-16 z-[60] bg-white rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out ${
-          showMore ? 'translate-y-0' : 'translate-y-full'
+          showMore ? 'translate-y-0' : 'translate-y-full pointer-events-none'
         }`}
       >
         <div className="flex justify-center pt-2 pb-1">
