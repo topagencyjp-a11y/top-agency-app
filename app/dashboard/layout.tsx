@@ -30,15 +30,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className="min-h-screen bg-gray-100 pb-16">
       {children}
 
-      {/* backdrop — タップで閉じる */}
+      {/* backdrop */}
       {showMore && (
-        <div
-          className="fixed inset-0 z-40 bg-black/40"
-          onClick={closeMore}
-        />
+        <div className="fixed inset-0 z-40 bg-black/40" onClick={closeMore} />
       )}
 
-      {/* その他シート — ナビ上からスライドアップ */}
+      {/* フローティング「その他」ボタン — ナビの右上に固定 */}
+      <button
+        onClick={() => setShowMore(v => !v)}
+        className={`fixed bottom-20 right-4 z-50 w-10 h-10 rounded-full shadow-lg flex items-center justify-center text-lg transition-all active:scale-95 select-none ${
+          isMoreActive || showMore
+            ? 'bg-blue-600 text-white'
+            : 'bg-white text-gray-500 border border-gray-200'
+        }`}
+      >
+        {showMore ? '✕' : '⋯'}
+      </button>
+
+      {/* その他シート — 画面下からスライドアップ */}
       <div
         className={`fixed left-0 right-0 bottom-16 z-[60] bg-white rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out ${
           showMore ? 'translate-y-0' : 'translate-y-full pointer-events-none'
@@ -69,7 +78,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </div>
 
-      {/* ボトムナビ（5タブ固定 + その他） */}
+      {/* ボトムナビ（5タブ固定） */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 safe-area-pb">
         <div className="flex max-w-lg mx-auto">
           {NAV.map(item => {
@@ -93,22 +102,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </Link>
             );
           })}
-
-          {/* その他ボタン */}
-          <button
-            onClick={() => setShowMore(v => !v)}
-            className={`relative flex-1 flex flex-col items-center pt-2 pb-1.5 gap-0.5 select-none transition-colors active:bg-gray-50 ${
-              isMoreActive || showMore ? 'text-blue-600' : 'text-gray-400'
-            }`}
-          >
-            <span className="text-[22px] leading-none">⋯</span>
-            <span className={`text-[10px] font-medium ${isMoreActive || showMore ? 'text-blue-600' : 'text-gray-400'}`}>
-              その他
-            </span>
-            {(isMoreActive || showMore) && (
-              <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-blue-600 rounded-t-full" />
-            )}
-          </button>
         </div>
       </nav>
     </div>
