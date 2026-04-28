@@ -126,9 +126,6 @@ function ShiftContent() {
           {hasChanges && !savedMsg && <span className="text-xs bg-orange-500 text-white px-2 py-0.5 rounded-full">未保存</span>}
           {lastUpdated && <span className="text-xs text-gray-500">{lastUpdated.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</span>}
           <button onClick={syncShifts} className="text-xs text-gray-400 active:opacity-60 transition-opacity select-none">🔄</button>
-          {user?.isManager && (
-            <button onClick={() => router.push('/dashboard/settings')} className="text-gray-400 text-sm active:opacity-60 transition-opacity select-none">⚙️</button>
-          )}
         </div>
       </div>
 
