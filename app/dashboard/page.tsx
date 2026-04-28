@@ -38,9 +38,12 @@ export default function Dashboard() {
     improvements: '', learnings: '', gratitude: '',
     area1: '', area2: '', area3: '', area4: '', area5: '',
     area6: '', area7: '', area8: '', area9: '', area10: '',
+    isp1: '', isp2: '', isp3: '', isp4: '', isp5: '',
+    isp6: '', isp7: '', isp8: '', isp9: '', isp10: '',
   });
   const [areaTab, setAreaTab] = useState(1);
   const [areaQuery, setAreaQuery] = useState('');
+  const [ispOther, setIspOther] = useState<Record<number, string>>({});
 
   const showToast = (type: 'success' | 'error', msg: string) => {
     setToast({ type, msg });
@@ -114,7 +117,18 @@ export default function Dashboard() {
         area4: existing.area4 || '', area5: existing.area5 || '', area6: existing.area6 || '',
         area7: existing.area7 || '', area8: existing.area8 || '', area9: existing.area9 || '',
         area10: existing.area10 || '',
+        isp1: existing.isp1 || '', isp2: existing.isp2 || '', isp3: existing.isp3 || '',
+        isp4: existing.isp4 || '', isp5: existing.isp5 || '', isp6: existing.isp6 || '',
+        isp7: existing.isp7 || '', isp8: existing.isp8 || '', isp9: existing.isp9 || '',
+        isp10: existing.isp10 || '',
       });
+      // ispOther復元: "その他：〇〇"形式から分離
+      const otherMap: Record<number, string> = {};
+      for (let i = 1; i <= 10; i++) {
+        const v = existing[`isp${i}`] || '';
+        if (String(v).startsWith('その他：')) otherMap[i] = String(v).slice(4);
+      }
+      setIspOther(otherMap);
       setAreaTab(1); setAreaQuery(existing.area1 || '');
     } else {
       setForm({
@@ -123,7 +137,10 @@ export default function Dashboard() {
         goodPoints: '', issues: '', improvements: '', learnings: '', gratitude: '',
         area1: '', area2: '', area3: '', area4: '', area5: '',
         area6: '', area7: '', area8: '', area9: '', area10: '',
+        isp1: '', isp2: '', isp3: '', isp4: '', isp5: '',
+        isp6: '', isp7: '', isp8: '', isp9: '', isp10: '',
       });
+      setIspOther({});
       setAreaTab(1); setAreaQuery('');
     }
   }, [selectedDate, inputAsName, reports]);
@@ -159,9 +176,12 @@ export default function Dashboard() {
       `■ 稼働時間`, `${form.startTime || '--:--'} 〜 ${form.endTime || '--:--'}`, ``,
       `■ 行動量`, `訪問：${form.visits}　対面：${form.netMeet}　主権：${form.mainMeet}　商談：${form.negotiation}　獲得：${form.acquired}`, ``,
     ];
-    const areas = [form.area1, form.area2, form.area3, form.area4, form.area5,
-      form.area6, form.area7, form.area8, form.area9, form.area10].filter(Boolean);
-    if (areas.length > 0) lines.push(`■ 獲得エリア\n${areas.map((a, i) => `${CIRCLED[i]} ${a}`).join('　')}\n`);
+    const areaList = [form.area1, form.area2, form.area3, form.area4, form.area5,
+      form.area6, form.area7, form.area8, form.area9, form.area10];
+    const ispList  = [form.isp1, form.isp2, form.isp3, form.isp4, form.isp5,
+      form.isp6, form.isp7, form.isp8, form.isp9, form.isp10];
+    const areas = areaList.map((a, i) => ({ area: a, isp: ispList[i] })).filter(x => x.area || x.isp);
+    if (areas.length > 0) lines.push(`■ 獲得エリア\n${areas.map((x, i) => `${CIRCLED[i]} ${x.area || '—'}${x.isp ? `（${x.isp}）` : ''}`).join('　')}\n`);
     if (form.acquiredCase) lines.push(`■ 獲得案件\n${form.acquiredCase}\n`);
     if (form.lostCase) lines.push(`■ 失注案件\n${form.lostCase}\n`);
     if (form.goodPoints) lines.push(`■ よかった点\n${form.goodPoints}\n`);
@@ -200,6 +220,19 @@ export default function Dashboard() {
   const isToday = selectedDate === new Date().toISOString().split('T')[0];
   const hasData = reports.some(r => r.date === selectedDate && r.name === inputAsName);
   const isProxy = user && inputAsName !== user.name;
+
+  const ISP_OPTIONS = ['J:COM','SB光','SBair','さすがネット','未利用','BAYCOM','ドコモホーム','ドコモ光','BIG光','so-net光','UQ WiMAX','その他'] as const;
+
+  const setIsp = (n: number, selected: string, otherText?: string) => {
+    const val = selected === 'その他' ? (otherText !== undefined ? `その他：${otherText}` : `その他：${ispOther[n] || ''}`) : selected;
+    setForm(f => ({ ...f, [`isp${n}`]: val }));
+    if (selected === 'その他' && otherText !== undefined) setIspOther(prev => ({ ...prev, [n]: otherText }));
+  };
+
+  const getIspSelected = (n: number): string => {
+    const v = ((form as unknown) as Record<string, string>)[`isp${n}`] || '';
+    return v.startsWith('その他') ? 'その他' : v;
+  };
 
   const actionItems = [
     { key: 'visits' as const,      label: '訪問数',   color: 'bg-blue-500' },
@@ -401,7 +434,7 @@ export default function Dashboard() {
                       <button key={n} onClick={() => { setAreaTab(n); setAreaQuery(area || ''); }}
                         className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all active:scale-95 select-none
                           ${areaTab === n ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
-                        獲得{CIRCLED[i]}{area ? ` ${area}` : ''}
+                        獲得{CIRCLED[i]}{area ? ` ${area}` : ''}{getIspSelected(n) ? ` / ${getIspSelected(n)}` : ''}
                       </button>
                     );
                   })}
@@ -432,6 +465,33 @@ export default function Dashboard() {
                   }) : <div className="px-4 py-2.5 text-sm text-gray-400">「{areaQuery}」で保存します</div>}
                 </div>
               )}
+
+              {/* 既存回線 */}
+              <div className="mt-3">
+                <div className="text-sm font-medium text-gray-700 mb-2">📡 既存回線</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {ISP_OPTIONS.map(opt => {
+                    const sel = getIspSelected(areaTab) === opt;
+                    return (
+                      <button key={opt}
+                        onClick={() => setIsp(areaTab, sel ? '' : opt)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-bold transition-all active:scale-95 select-none
+                          ${sel ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                        {opt}
+                      </button>
+                    );
+                  })}
+                </div>
+                {getIspSelected(areaTab) === 'その他' && (
+                  <input
+                    type="text"
+                    value={ispOther[areaTab] || ''}
+                    onChange={e => setIsp(areaTab, 'その他', e.target.value)}
+                    placeholder="回線名を入力"
+                    className="mt-2 w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  />
+                )}
+              </div>
               {count > 1 && (
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   {Array.from({ length: count }, (_, i) => {

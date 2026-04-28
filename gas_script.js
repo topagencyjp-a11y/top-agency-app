@@ -1,11 +1,14 @@
 const SPREADSHEET_ID = '1Ahyt22lcq6C0BvFgX_9OgdGfCtagI_ZlGW0knEZd86s';
 const MANAGER_PASSWORD = 'topMgr2024!';
 
+const ISP_LABELS = ['J:COM','SB光','SBair','さすがネット','未利用','BAYCOM','ドコモホーム','ドコモ光','BIG光','so-net光','UQ WiMAX','その他'];
+
 const REPORT_HEADERS = [
   'name','date','visits','netMeet','mainMeet','negotiation','acquired',
   'startTime','endTime','acquiredCase','lostCase','goodPoints','issues',
   'improvements','learnings','gratitude','planDays',
   'area1','area2','area3','area4','area5','area6','area7','area8','area9','area10',
+  'isp1','isp2','isp3','isp4','isp5','isp6','isp7','isp8','isp9','isp10',
   'updatedAt','updatedBy'
 ];
 
@@ -150,15 +153,18 @@ function saveReport(data) {
     return data[h] !== undefined ? data[h] : '';
   });
 
+  const monthStr = String(data.date).slice(0, 7);
   for (let i = 1; i < allRows.length; i++) {
     if (allRows[i][nameIdx] === data.name && allRows[i][dateIdx] === data.date) {
       sheet.getRange(i + 1, 1, 1, headers.length).setValues([rowValues]);
       updateMonthlySummary(data.name, data.date);
+      updateViewSheets(monthStr);
       return { success: true };
     }
   }
   sheet.appendRow(rowValues);
   updateMonthlySummary(data.name, data.date);
+  updateViewSheets(monthStr);
   return { success: true };
 }
 
@@ -486,6 +492,233 @@ function migrateAddPasswordColumn() {
   for (let i = 1; i < rows.length; i++) {
     sheet.getRange(i + 1, col).setValue('top2024');
   }
+}
+
+// ── 集計ビュー（saveReport時に自動更新）─────────────────
+
+function updateViewSheets(month) {
+  try { updateSalesCountView(month); } catch(e) { Logger.log('salesCount err:' + e); }
+  try { updateActivityView(month);   } catch(e) { Logger.log('activity err:'  + e); }
+  try { updateIspView(month);        } catch(e) { Logger.log('isp err:'        + e); }
+}
+
+function _viewMembers() {
+  const sheet = getSheet('メンバー設定');
+  if (sheet.getLastRow() <= 1) return [];
+  const rows = sheet.getDataRange().getValues();
+  const h = rows[0];
+  return rows.slice(1).map(row => {
+    const o = {};
+    h.forEach((k, i) => { o[k] = row[i]; });
+    o.target = Number(o.target) || 0;
+    return o;
+  });
+}
+
+function _viewReports(month) {
+  const sheet = getSheet('reports');
+  repairReportsSheet(sheet);
+  if (sheet.getLastRow() <= 1) return [];
+  const rows = sheet.getDataRange().getValues();
+  const headers = rows[0];
+  return rows.slice(1).map(row => {
+    const o = {};
+    headers.forEach((h, i) => { o[h] = row[i]; });
+    return o;
+  }).filter(r => r.name && String(r.date).slice(0, 7) === month);
+}
+
+function updateSalesCountView(month) {
+  const sheet = getSheet('件数管理ビュー');
+  const members = _viewMembers();
+  const reports = _viewReports(month);
+  if (members.length === 0) { sheet.clearContents(); return; }
+
+  const [y, mo] = month.split('-').map(Number);
+  const daysInMonth = new Date(y, mo, 0).getDate();
+  const weeks = [
+    { label: 'W1', s: 1,  e: 7  },
+    { label: 'W2', s: 8,  e: 14 },
+    { label: 'W3', s: 15, e: 21 },
+    { label: 'W4', s: 22, e: 28 },
+    { label: 'W5', s: 29, e: daysInMonth },
+  ].filter(w => w.s <= daysInMonth);
+
+  const header = ['メンバー'];
+  weeks.forEach(w => header.push(w.label + '目標', w.label + '実績', w.label + '差分', w.label + '達成率'));
+  header.push('月目標', '月実績', '月達成率');
+
+  const dataRows = [];
+  const teamWA = weeks.map(() => 0);
+  const teamWT = weeks.map(() => 0);
+  let teamTA = 0, teamTT = 0;
+
+  members.forEach(m => {
+    const mReps = reports.filter(r => String(r.name) === String(m.name));
+    const row = [m.name];
+    weeks.forEach((w, wi) => {
+      const wDays = w.e - w.s + 1;
+      const wTarget = Math.round(m.target * wDays / daysInMonth);
+      const wActual = mReps
+        .filter(r => { const d = parseInt(String(r.date).slice(8, 10), 10); return d >= w.s && d <= w.e; })
+        .reduce((s, r) => s + (Number(r.acquired) || 0), 0);
+      row.push(wTarget, wActual, wActual - wTarget, wTarget > 0 ? wActual / wTarget : 0);
+      teamWA[wi] += wActual;
+      teamWT[wi] += wTarget;
+    });
+    const mTotal = mReps.reduce((s, r) => s + (Number(r.acquired) || 0), 0);
+    row.push(m.target, mTotal, m.target > 0 ? mTotal / m.target : 0);
+    teamTA += mTotal; teamTT += m.target;
+    dataRows.push(row);
+  });
+
+  const totalRow = ['チーム合計'];
+  weeks.forEach((w, wi) => {
+    totalRow.push(teamWT[wi], teamWA[wi], teamWA[wi] - teamWT[wi], teamWT[wi] > 0 ? teamWA[wi] / teamWT[wi] : 0);
+  });
+  totalRow.push(teamTT, teamTA, teamTT > 0 ? teamTA / teamTT : 0);
+
+  const allRows = [header, ...dataRows, totalRow];
+  sheet.clearContents();
+  sheet.getRange(1, 1, allRows.length, header.length).setValues(allRows);
+
+  sheet.getRange(1, 1, 1, header.length)
+    .setBackground('#1e293b').setFontColor('#ffffff').setFontWeight('bold').setHorizontalAlignment('center');
+  sheet.getRange(allRows.length, 1, 1, header.length).setBackground('#f1f5f9').setFontWeight('bold');
+  sheet.getRange(1, 1, allRows.length, 1).setFontWeight('bold');
+
+  // 達成率列をフォーマット＆色付け（既知の data から）
+  const rateCols = weeks.map((w, wi) => 2 + wi * 4 + 3);
+  rateCols.push(header.length);
+  rateCols.forEach(col => {
+    if (dataRows.length > 0) sheet.getRange(2, col, dataRows.length, 1).setNumberFormat('0%');
+    sheet.getRange(allRows.length, col).setNumberFormat('0%');
+    dataRows.forEach((row, ri) => {
+      const v = Number(row[col - 1]);
+      const cell = sheet.getRange(ri + 2, col);
+      if      (v >= 1)   cell.setBackground('#bbf7d0').setFontColor('#166534');
+      else if (v >= 0.8) cell.setBackground('#fef9c3').setFontColor('#854d0e');
+      else if (v > 0)    cell.setBackground('#fee2e2').setFontColor('#991b1b');
+      else               cell.setBackground('#f9fafb').setFontColor('#9ca3af');
+    });
+  });
+
+  sheet.setFrozenRows(1);
+  sheet.setFrozenColumns(1);
+}
+
+function updateActivityView(month) {
+  const sheet = getSheet('行動量管理ビュー');
+  const members = _viewMembers();
+  const reports = _viewReports(month);
+  if (members.length === 0) { sheet.clearContents(); return; }
+
+  const header = ['メンバー','訪問数','対面数','対面率','主権対面数','主権率','商談数','商談率','獲得数','獲得率'];
+  const dataRows = [];
+  let tV = 0, tNM = 0, tMM = 0, tNeg = 0, tAcq = 0;
+
+  members.forEach(m => {
+    const mReps = reports.filter(r => String(r.name) === String(m.name));
+    const v   = mReps.reduce((s, r) => s + (Number(r.visits)      || 0), 0);
+    const nm  = mReps.reduce((s, r) => s + (Number(r.netMeet)     || 0), 0);
+    const mm  = mReps.reduce((s, r) => s + (Number(r.mainMeet)    || 0), 0);
+    const neg = mReps.reduce((s, r) => s + (Number(r.negotiation) || 0), 0);
+    const acq = mReps.reduce((s, r) => s + (Number(r.acquired)    || 0), 0);
+    dataRows.push([m.name, v, nm, v > 0 ? nm / v : 0, mm, nm > 0 ? mm / nm : 0, neg, mm > 0 ? neg / mm : 0, acq, neg > 0 ? acq / neg : 0]);
+    tV += v; tNM += nm; tMM += mm; tNeg += neg; tAcq += acq;
+  });
+
+  const avgRow = ['チーム計', tV, tNM, tV > 0 ? tNM / tV : 0, tMM, tNM > 0 ? tMM / tNM : 0, tNeg, tMM > 0 ? tNeg / tMM : 0, tAcq, tNeg > 0 ? tAcq / tNeg : 0];
+  const allRows = [header, ...dataRows, avgRow];
+  sheet.clearContents();
+  sheet.getRange(1, 1, allRows.length, header.length).setValues(allRows);
+
+  sheet.getRange(1, 1, 1, header.length)
+    .setBackground('#0f766e').setFontColor('#ffffff').setFontWeight('bold').setHorizontalAlignment('center');
+  sheet.getRange(allRows.length, 1, 1, header.length).setBackground('#f0fdf4').setFontWeight('bold');
+  sheet.getRange(1, 1, allRows.length, 1).setFontWeight('bold');
+
+  // 転換率列: 対面率=4, 主権率=6, 商談率=8, 獲得率=10
+  const rateCols   = [4, 6, 8, 10];
+  const benchmarks = [0.3, 0.5, 0.4, 0.3];
+  rateCols.forEach((col, ci) => {
+    const bench = benchmarks[ci];
+    if (dataRows.length > 0) sheet.getRange(2, col, dataRows.length, 1).setNumberFormat('0.0%');
+    sheet.getRange(allRows.length, col).setNumberFormat('0.0%');
+    dataRows.forEach((row, ri) => {
+      const v = Number(row[col - 1]);
+      const cell = sheet.getRange(ri + 2, col);
+      if      (v >= bench)        cell.setBackground('#bbf7d0').setFontColor('#166534');
+      else if (v >= bench * 0.7)  cell.setBackground('#fef9c3').setFontColor('#854d0e');
+      else if (v > 0)             cell.setBackground('#fee2e2').setFontColor('#991b1b');
+      else                        cell.setBackground('#f9fafb').setFontColor('#9ca3af');
+    });
+  });
+
+  sheet.setFrozenRows(1);
+  sheet.setFrozenColumns(1);
+}
+
+function updateIspView(month) {
+  const sheet = getSheet('ISP分析ビュー');
+  const members = _viewMembers();
+  const reports = _viewReports(month);
+  if (members.length === 0) { sheet.clearContents(); return; }
+
+  const header = ['メンバー', ...ISP_LABELS, '合計'];
+  const dataRows = [];
+  const teamCounts = ISP_LABELS.map(() => 0);
+
+  members.forEach(m => {
+    const mReps = reports.filter(r => String(r.name) === String(m.name));
+    const counts = ISP_LABELS.map(() => 0);
+    mReps.forEach(r => {
+      for (let i = 1; i <= 10; i++) {
+        const val = String(r['isp' + i] || '').trim();
+        if (!val) continue;
+        const label = val.startsWith('その他') ? 'その他' : val;
+        const idx = ISP_LABELS.indexOf(label);
+        if (idx >= 0) { counts[idx]++; teamCounts[idx]++; }
+      }
+    });
+    const total = counts.reduce((s, c) => s + c, 0);
+    dataRows.push([m.name, ...counts, total]);
+  });
+
+  const teamTotal = teamCounts.reduce((s, c) => s + c, 0);
+  const allRows = [header, ...dataRows, ['チーム合計', ...teamCounts, teamTotal]];
+  sheet.clearContents();
+  sheet.getRange(1, 1, allRows.length, header.length).setValues(allRows);
+
+  sheet.getRange(1, 1, 1, header.length)
+    .setBackground('#7c3aed').setFontColor('#ffffff').setFontWeight('bold').setHorizontalAlignment('center');
+  sheet.getRange(allRows.length, 1, 1, header.length).setBackground('#f5f3ff').setFontWeight('bold');
+  sheet.getRange(1, 1, allRows.length, 1).setFontWeight('bold');
+  sheet.getRange(2, header.length, Math.max(dataRows.length, 1), 1).setFontWeight('bold');
+
+  // ヒートマップ（件数多いほど濃い紫）
+  if (dataRows.length > 0) {
+    const maxCount = Math.max(...dataRows.map(r => Math.max(...r.slice(1, -1).map(Number))), 1);
+    dataRows.forEach((row, ri) => {
+      ISP_LABELS.forEach((lbl, ci) => {
+        const count = Number(row[ci + 1]);
+        const cell = sheet.getRange(ri + 2, ci + 2);
+        if (count === 0) {
+          cell.setBackground('#f9fafb').setFontColor('#d1d5db');
+        } else {
+          const intensity = count / maxCount;
+          if      (intensity >= 0.8) cell.setBackground('#6d28d9').setFontColor('#ffffff');
+          else if (intensity >= 0.6) cell.setBackground('#8b5cf6').setFontColor('#ffffff');
+          else if (intensity >= 0.4) cell.setBackground('#a78bfa').setFontColor('#1e1b4b');
+          else if (intensity >= 0.2) cell.setBackground('#c4b5fd').setFontColor('#1e1b4b');
+          else                       cell.setBackground('#ede9fe').setFontColor('#4c1d95');
+        }
+      });
+    });
+  }
+
+  sheet.setFrozenRows(1);
+  sheet.setFrozenColumns(1);
 }
 
 // ── スプレッドシート整形（手動で1回実行） ────────────────
