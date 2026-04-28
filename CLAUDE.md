@@ -29,78 +29,84 @@ au光販売代理店向け営業管理アプリ。
 
 ## ページ構成（現在の実装）
 
-### ナビゲーション
-現状: layout.tsx はラッパーのみ（ボトムナビ未実装）
-各ページはヘッダーの「← 戻る」で dashboard に戻る構造
-ドロワーメニュー（dashboard/page.tsx 右上 ☰）から各ページへ遷移
+### ナビゲーション（5タブ固定・ボトムナビ）
+`app/dashboard/layout.tsx` にボトムナビ実装済み。
+
+| タブ | アイコン | パス |
+|---|---|---|
+| 入力 | ✏️ | /dashboard（exact） |
+| 件数管理 | 📊 | /dashboard/stats |
+| 行動量管理 | 🔄 | /dashboard/activity |
+| 個人分析 | 👤 | /dashboard/personal |
+| シフト | 📅 | /dashboard/shift |
 
 ### ページ一覧
 
 | パス | 役割 | 状態 |
 |---|---|---|
-| app/dashboard/page.tsx | 入力・個人・分析・全体の4タブ | 実装済み（要改善） |
-| app/dashboard/stats/page.tsx | 件数管理 | ✅ 完成（2025-04-27 再構築）|
-| app/dashboard/conversion/page.tsx | 転換率分析・ボトルネック・改善TIPS | 実装済み |
-| app/dashboard/reports/page.tsx | 日報一覧・展開閲覧・コピー | 実装済み |
-| app/dashboard/shift/page.tsx | シフト入力・全体確認 | 実装済み |
-| app/dashboard/daily/page.tsx | 日別稼働グリッド（全員カレンダー） | 実装済み |
-| app/dashboard/settings/page.tsx | メンバー管理・パスワード変更 | 実装済み |
-| app/login/page.tsx | ログイン（氏名選択＋パスワード） | 実装済み |
+| app/dashboard/page.tsx | 日報入力（代理入力対応） | ✅ 完成 |
+| app/dashboard/stats/page.tsx | 件数管理 | ✅ 完成 |
+| app/dashboard/activity/page.tsx | 行動量管理・ファネル分析 | ✅ 完成 |
+| app/dashboard/personal/page.tsx | 個人分析（6セクション） | ✅ 完成 |
+| app/dashboard/shift/page.tsx | シフト入力・全体確認 | ✅ 完成 |
+| app/dashboard/settings/page.tsx | メンバー管理・パスワード変更 | ✅ 完成 |
+| app/login/page.tsx | ログイン（氏名選択＋パスワード） | ✅ 完成 |
+| app/dashboard/conversion/page.tsx | redirect → /dashboard/activity | リダイレクト |
+| app/dashboard/reports/page.tsx | redirect → /dashboard | リダイレクト |
+| app/dashboard/daily/page.tsx | redirect → /dashboard | リダイレクト |
 
 ---
 
 ## 各ページ詳細
 
-### ✏️ dashboard/page.tsx（メインページ・4タブ）
-**メンバーが毎日使う最重要ページ**
+### ✏️ dashboard/page.tsx（入力ページ）
+**メンバーが毎日使う最重要ページ。タブなし・入力専用。**
 
-タブ構成:
-- **入力タブ**: 日付切替・稼働時間・行動量5項目・獲得エリア選択・日報6項目・感謝・コピー/保存
-- **個人タブ**: KPI・達成率・着地予測・行動量合計・対面率・獲得率（責任者は他メンバー閲覧可）
-- **分析タブ**: 転換率ファネル（訪問→対面→主権→商談→契約）・メンバー別転換率
-- **全体タブ**: チームKPI・着地予測・ランキングバー・行動量グリッド・メンバー別テーブル
+- 日付切替・稼働時間・行動量5項目（±ボタン+数値入力）
+- 獲得エリア選択（大阪府エリアサジェスト、area1〜area10）
+- 日報テキスト6項目＋感謝
+- 計画稼働日数（月初モーダル設定、自分のみ）
+- コピー/保存ボタン
+- **責任者機能**: ヘッダー下チップ行でメンバー選択 → 代理入力（黄色プロキシバナー表示）
+- **⚙️ボタン**: ヘッダー右 → /dashboard/settings（全ユーザー）
 
 入力フォーム state:
 ```typescript
 { visits, netMeet, mainMeet, negotiation, acquired,
   startTime, endTime,
   acquiredCase, lostCase, goodPoints, issues, improvements, learnings,
-  gratitude, planDays,  // planDays は今も存在（月初設定フロー未実装のため）
+  gratitude,
   area1〜area10 }
 ```
 
-ドロワーメニュー（☰）からのリンク:
-- シフト提出 → /dashboard/shift
-- シフト提出確認 → /dashboard/shift?view=confirm
-- 日別稼働 → /dashboard/daily
-- 日報管理 → /dashboard/reports
-- 設定 → /dashboard/settings
+planDays は localStorage に `planDays_${YYYY-MM}` で別管理（フォームに含まない）。
 
 ### 📊 stats/page.tsx（件数管理）
 期間セレクター（今月/今週/月選択）＋4カードサマリー＋2つのランキングバー＋詳細テーブル
 lib/calcStats.ts を使用。20秒自動ポーリング。
 
-### 🔄 conversion/page.tsx（転換率分析）
-転換率ファネル・ボトルネック検出・各ステップ別改善TIPS（TIPS定数で管理）
-メンバー別転換率テーブル。
+### 🔄 activity/page.tsx（行動量管理）
+期間セレクター＋上位3名獲得件数ランキング（強みバッジ付き）＋チームファネル＋メンバー別テーブル
+- `toFunnel()` / `bestStep()` / `BENCHMARKS` で転換率計算
+- ボトルネック（最低率ステップ）を赤バナーで表示
 
-### 📝 reports/page.tsx（日報管理）
-月別・メンバー別フィルタ。展開/折りたたみ。クリップボードコピー。
+### 👤 personal/page.tsx（個人分析）
+6セクション: ①達成状況 ②ペース分析 ③転換率ファネル ④カレンダーヒートマップ ⑤自動コメント ⑥獲得エリア分析
+- 責任者はメンバーピッカーで任意メンバーのデータを閲覧可能
+- エリア分析: 先月比diff・NEW・TOP3メダル表示
 
 ### 📅 shift/page.tsx（シフト管理）
 - submit ビュー: 自分のカレンダー（タップで稼働/休日切替）
 - confirm ビュー: 全メンバーの月間シフトテーブル（今日列ハイライト）
 - 今月の稼働日数カウント表示
-
-### 📆 daily/page.tsx（日別稼働グリッド）
-全メンバー × 月全日のグリッド。シフト状態＋報告有無を一覧表示。
-責任者がチーム全体の活動状況を把握するためのビュー。
+- **⚙️ボタン**: ヘッダー右（責任者のみ） → /dashboard/settings
 
 ### ⚙️ settings/page.tsx（設定）
 - メンバー追加・編集（名前・役割・月間目標・責任者フラグ）・削除
 - デフォルトメンバーへリセット
 - パスワード変更（GAS経由で更新）
 - 責任者のみアクセス可（isManager チェック）
+- 「← 戻る」で /dashboard に戻る
 
 ---
 
@@ -157,8 +163,8 @@ adminUpdateReport(data, adminName)
 ---
 
 ## 権限設計
-- **責任者** (isManager=true): 全メンバーのデータ閲覧・編集・修正・設定ページアクセス
-- **一般メンバー**: 自分のデータのみ（個人タブで他人閲覧不可）
+- **責任者** (isManager=true): 全メンバーのデータ閲覧・代理入力・設定ページアクセス
+- **一般メンバー**: 自分のデータのみ閲覧・入力
 - **管理者パスワード**: topMgr2024! でログインすると isManager=true 扱い
 
 ---
@@ -178,6 +184,11 @@ adminUpdateReport(data, adminName)
 const initialLoadDone = useRef(false);
 const formDirty = useRef(false);  // 入力中フラグ（inputページ）
 ```
+
+### アニメーション
+- `page-animate`: スライドイン（全ページのメインコンテンツdivに付与）
+- `tab-animate`: タブ切替フェードアップ
+- `skeleton`: ローディング中のシマーアニメーション
 
 ---
 
