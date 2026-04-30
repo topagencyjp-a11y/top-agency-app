@@ -1,9 +1,21 @@
 export type Member = {
   id: string;
   name: string;
-  role: 'closer' | 'appointer';
+  role: 'closer' | 'appointer' | 'leader';
   target: number;
   isManager?: boolean;
+  teamId?: string;
+  planDays?: number;
+};
+
+export type Team = { teamId: string; teamName: string };
+
+export type MonthlyPlan = {
+  memberId: string;
+  month: string;
+  planDays: number;
+  monthlyTarget: number;
+  submittedBy: string;
 };
 
 export const MEMBERS: Member[] = [

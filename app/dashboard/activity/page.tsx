@@ -2,7 +2,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { loadMembers } from '@/lib/memberStore';
-import { getMembersFromGAS, getReports, getAvailableMonths } from '@/lib/api';
+import { getMembersFromGAS, getReports, getAvailableMonths, getTeams } from '@/lib/api';
+import { Team } from '@/lib/members';
 import { getPeriodReports, calcMemberStats, MemberStats } from '@/lib/calcStats';
 
 const BENCHMARKS = { meet: 30, main: 50, negotiation: 40, contract: 30 } as const;
@@ -54,6 +55,8 @@ export default function ActivityPage() {
   const router = useRouter();
   const [reports, setReports] = useState<Record<string, unknown>[]>([]);
   const [members, setMembers] = useState(loadMembers());
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [selectedTeam, setSelectedTeam] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<string>('month');
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
@@ -64,6 +67,8 @@ export default function ActivityPage() {
     const u = localStorage.getItem('user');
     if (!u) { router.push('/login'); return; }
 
+    const userRaw = localStorage.getItem('user');
+    if (userRaw) { const parsed = JSON.parse(userRaw); if (parsed.isManager) getTeams().then(t => setTeams(t)); }
     setMembers(loadMembers());
     getMembersFromGAS().then(data => {
       if (data.length > 0) { localStorage.setItem('members', JSON.stringify(data)); setMembers(data); }
@@ -106,8 +111,9 @@ export default function ActivityPage() {
     }
   };
 
+  const filteredMembers = selectedTeam === 'all' ? members : members.filter(m => m.teamId === selectedTeam);
   const periodReports = getPeriodReports(reports, period);
-  const allStats: MemberStats[] = members.map(m => calcMemberStats(periodReports, m, period));
+  const allStats: MemberStats[] = filteredMembers.map(m => calcMemberStats(periodReports, m, period));
 
   // Team aggregate funnel
   const agg = {
@@ -171,6 +177,24 @@ export default function ActivityPage() {
       </div>
 
       <div className="p-4 max-w-2xl mx-auto space-y-4 page-animate">
+
+        {/* チームタブ */}
+        {teams.length > 0 && (
+          <div className="flex gap-1.5 overflow-x-auto pb-1">
+            <button onClick={() => setSelectedTeam('all')}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all select-none
+                ${selectedTeam === 'all' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 shadow-sm'}`}>
+              全体
+            </button>
+            {teams.map(t => (
+              <button key={t.teamId} onClick={() => setSelectedTeam(t.teamId)}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all select-none
+                  ${selectedTeam === t.teamId ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 shadow-sm'}`}>
+                {t.teamName}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Period selector */}
         <div className="bg-white rounded-2xl p-3 shadow-sm space-y-2">

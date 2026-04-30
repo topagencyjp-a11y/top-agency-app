@@ -1,3 +1,5 @@
+import type { Team, MonthlyPlan } from './members';
+
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbwYGlW-oq8FIAdsHhin4pqUZICN_Ju39mhwkyohDBi3LIFZUZUklNaVMxrluRC05oOCvw/exec';
 
 function toLocalDateStr(val: string): string {
@@ -112,6 +114,43 @@ export function getAvailableMonths(reports: Record<string, unknown>[]): string[]
     if (/^\d{4}-\d{2}$/.test(d)) months.add(d);
   });
   return Array.from(months).sort().reverse();
+}
+
+export async function getTeams(): Promise<Team[]> {
+  try {
+    const res = await fetch(`${GAS_URL}?action=getTeams`);
+    const data = await res.json();
+    return data.teams || [];
+  } catch { return []; }
+}
+
+export async function saveTeam(d: { teamId?: string; teamName: string }): Promise<{ success: boolean; teamId?: string }> {
+  try {
+    const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'saveTeam', ...d }) });
+    return await res.json();
+  } catch { return { success: false }; }
+}
+
+export async function deleteTeam(teamId: string): Promise<{ success: boolean }> {
+  try {
+    const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'deleteTeam', teamId }) });
+    return await res.json();
+  } catch { return { success: false }; }
+}
+
+export async function getMonthlyPlans(month: string): Promise<MonthlyPlan[]> {
+  try {
+    const res = await fetch(`${GAS_URL}?action=getMonthlyPlans&month=${encodeURIComponent(month)}`);
+    const data = await res.json();
+    return data.plans || [];
+  } catch { return []; }
+}
+
+export async function saveMonthlyPlan(d: MonthlyPlan): Promise<{ success: boolean }> {
+  try {
+    const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'saveMonthlyPlan', ...d }) });
+    return await res.json();
+  } catch { return { success: false }; }
 }
 
 export async function updatePasswordInGAS(

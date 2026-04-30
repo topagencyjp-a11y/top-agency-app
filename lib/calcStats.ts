@@ -2,7 +2,7 @@ import { Member } from './members';
 
 export type MemberStats = {
   name: string;
-  role: 'closer' | 'appointer';
+  role: 'closer' | 'appointer' | 'leader';
   target: number;        // period-adjusted target
   acquired: number;
   workedDays: number;

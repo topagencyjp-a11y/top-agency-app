@@ -1,9 +1,9 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { MEMBERS, TEAM_TARGET as BASE_TEAM_TARGET } from '@/lib/members';
+import { MEMBERS, TEAM_TARGET as BASE_TEAM_TARGET, Team } from '@/lib/members';
 import { loadMembers } from '@/lib/memberStore';
-import { getReports, getMonthlySummary, getAvailableMonths } from '@/lib/api';
+import { getReports, getMonthlySummary, getAvailableMonths, getTeams, adminUpdateReport } from '@/lib/api';
 import { calcMemberStats, calcTeamStats, getPeriodReports, MemberStats } from '@/lib/calcStats';
 
 type Period = 'month' | 'week' | string;
@@ -97,14 +97,25 @@ function EmptyState({ period }: { period: string }) {
 
 // ── main component ───────────────────────────────────────────────────────────
 
+type EditModal = {
+  memberName: string;
+  date: string;
+  form: { visits: number; netMeet: number; mainMeet: number; negotiation: number; acquired: number };
+} | null;
+
 export default function StatsPage() {
   const router = useRouter();
+  const [user, setUser] = useState<{ isManager?: boolean; name?: string } | null>(null);
   const [allReports, setAllReports] = useState<Record<string, unknown>[]>([]);
   const [members, setMembers] = useState(MEMBERS);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [selectedTeam, setSelectedTeam] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>('month');
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
   const [animated, setAnimated] = useState(false);
+  const [editModal, setEditModal] = useState<EditModal>(null);
+  const [editSaving, setEditSaving] = useState(false);
   const initialDone = useRef(false);
 
   const loadData = useCallback(async () => {
@@ -129,9 +140,12 @@ export default function StatsPage() {
   useEffect(() => {
     const u = localStorage.getItem('user');
     if (!u) { router.push('/login'); return; }
+    const parsed = JSON.parse(u);
+    setUser(parsed);
 
     const m = loadMembers();
     setMembers(m);
+    if (parsed.isManager) getTeams().then(t => setTeams(t));
 
     const stored = localStorage.getItem('reports');
     if (stored) {
@@ -158,10 +172,56 @@ export default function StatsPage() {
     return () => clearTimeout(t);
   }, [period]);
 
+  const openEditModal = (memberName: string) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const existing = allReports.find(r => r.name === memberName && r.date === today);
+    setEditModal({
+      memberName,
+      date: today,
+      form: {
+        visits:      Number(existing?.visits)      || 0,
+        netMeet:     Number(existing?.netMeet)      || 0,
+        mainMeet:    Number(existing?.mainMeet)     || 0,
+        negotiation: Number(existing?.negotiation)  || 0,
+        acquired:    Number(existing?.acquired)     || 0,
+      },
+    });
+  };
+
+  const handleEditDateChange = (date: string) => {
+    if (!editModal) return;
+    const existing = allReports.find(r => r.name === editModal.memberName && r.date === date);
+    setEditModal({
+      ...editModal,
+      date,
+      form: {
+        visits:      Number(existing?.visits)      || 0,
+        netMeet:     Number(existing?.netMeet)      || 0,
+        mainMeet:    Number(existing?.mainMeet)     || 0,
+        negotiation: Number(existing?.negotiation)  || 0,
+        acquired:    Number(existing?.acquired)     || 0,
+      },
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!editModal || !user) return;
+    setEditSaving(true);
+    const existing = allReports.find(r => r.name === editModal.memberName && r.date === editModal.date) || {};
+    await adminUpdateReport(
+      { ...existing, ...editModal.form, name: editModal.memberName, date: editModal.date },
+      String(user.name)
+    );
+    await loadData();
+    setEditModal(null);
+    setEditSaving(false);
+  };
+
   // ── derived stats ──────────────────────────────────────────────────────────
 
+  const filteredMembers = selectedTeam === 'all' ? members : members.filter(m => m.teamId === selectedTeam);
   const periodReports = getPeriodReports(allReports, period);
-  const memberStats   = members.map(m => calcMemberStats(periodReports, m, period));
+  const memberStats   = filteredMembers.map(m => calcMemberStats(periodReports, m, period));
   const teamTarget    = memberStats.reduce((s, m) => s + m.target, 0) || BASE_TEAM_TARGET;
   const teamStats     = calcTeamStats(memberStats, teamTarget);
 
@@ -190,6 +250,45 @@ export default function StatsPage() {
         </div>
         <button onClick={loadData} className="text-gray-400 active:opacity-60 transition-opacity select-none">🔄</button>
       </div>
+
+      {/* 数値編集モーダル */}
+      {editModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-end justify-center p-4" onClick={() => setEditModal(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <div className="font-bold text-gray-900">{editModal.memberName} の数値を修正</div>
+              <button onClick={() => setEditModal(null)} className="text-gray-400 text-lg">✕</button>
+            </div>
+            <div>
+              <label className="text-xs text-gray-600 font-medium">日付</label>
+              <input type="date" value={editModal.date}
+                onChange={e => handleEditDateChange(e.target.value)}
+                className="w-full mt-1 border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {([
+                { key: 'visits',      label: '訪問数' },
+                { key: 'netMeet',     label: '対面数' },
+                { key: 'mainMeet',    label: '主権対面' },
+                { key: 'negotiation', label: '商談' },
+                { key: 'acquired',    label: '獲得数' },
+              ] as const).map(item => (
+                <div key={item.key}>
+                  <label className="text-xs text-gray-600 font-medium">{item.label}</label>
+                  <input type="number" min="0"
+                    value={editModal.form[item.key]}
+                    onChange={e => setEditModal({ ...editModal, form: { ...editModal.form, [item.key]: Math.max(0, +e.target.value) } })}
+                    className="w-full mt-1 border border-gray-300 rounded-xl px-3 py-2 text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              ))}
+            </div>
+            <button onClick={saveEdit} disabled={editSaving}
+              className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl text-sm active:scale-95 transition-all disabled:opacity-40">
+              {editSaving ? '保存中...' : '上書き保存'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Period Selector — sticky */}
       <div className="sticky top-0 z-10 bg-gray-100 px-4 pt-2 pb-2">
@@ -222,6 +321,24 @@ export default function StatsPage() {
           </div>
         </div>
       </div>
+
+      {/* チームタブ */}
+      {teams.length > 0 && (
+        <div className="px-4 pb-2 flex gap-1.5 overflow-x-auto">
+          <button onClick={() => setSelectedTeam('all')}
+            className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all select-none
+              ${selectedTeam === 'all' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 shadow-sm'}`}>
+            全体
+          </button>
+          {teams.map(t => (
+            <button key={t.teamId} onClick={() => setSelectedTeam(t.teamId)}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all select-none
+                ${selectedTeam === t.teamId ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 shadow-sm'}`}>
+              {t.teamName}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Content */}
       <div className="p-4 max-w-3xl mx-auto">
@@ -391,7 +508,7 @@ export default function StatsPage() {
                   <table className="text-xs w-full">
                     <thead className="bg-gray-800 text-white">
                       <tr>
-                        {['氏名', '目標', '現状', '着地★', '目標差', '実稼働', '残稼働', '生産性', '必要/日', 'ペース'].map(h => (
+                        {['氏名', '目標', '現状', '着地★', '目標差', '実稼働', '残稼働', '生産性', '必要/日', 'ペース', ...(user?.isManager ? ['修正'] : [])].map(h => (
                           <th
                             key={h}
                             className={`px-2 py-2 text-left whitespace-nowrap ${h === '氏名' ? 'sticky left-0 z-10 bg-gray-800' : ''}`}
@@ -427,6 +544,14 @@ export default function StatsPage() {
                             <td className={`px-2 py-2.5 font-medium whitespace-nowrap ${m.paceGap >= 0 ? 'text-green-600' : 'text-red-500'}`}>
                               {signF(m.paceGap, 1)}
                             </td>
+                            {user?.isManager && (
+                              <td className="px-2 py-2.5">
+                                <button onClick={() => openEditModal(m.name)}
+                                  className="text-xs text-blue-600 font-bold px-2 py-1 rounded-lg bg-blue-50 active:scale-95 transition-all select-none whitespace-nowrap">
+                                  修正
+                                </button>
+                              </td>
+                            )}
                           </tr>
                         );
                       })}

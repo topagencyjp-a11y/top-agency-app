@@ -14,7 +14,11 @@ const REPORT_HEADERS = [
 
 const SHIFT_HEADERS = ['name', 'date', 'status', 'updatedAt', 'updatedBy'];
 
-const MEMBER_HEADERS = ['id', 'name', 'role', 'target', 'isManager', 'password', 'planDays'];
+const MEMBER_HEADERS = ['id', 'name', 'role', 'target', 'isManager', 'password', 'planDays', 'teamId'];
+
+const TEAM_HEADERS = ['teamId', 'teamName', 'createdAt'];
+
+const MONTHLY_PLAN_HEADERS = ['memberId', 'month', 'planDays', 'monthlyTarget', 'submittedBy', 'submittedAt'];
 
 const SUMMARY_HEADERS = [
   'month', 'name', 'totalVisits', 'totalNetMeet', 'totalMainMeet',
@@ -40,6 +44,10 @@ function doGet(e) {
     result = getMembers();
   } else if (action === 'getMonthlySummary') {
     result = getMonthlySummary(e.parameter.month);
+  } else if (action === 'getTeams') {
+    result = getTeams();
+  } else if (action === 'getMonthlyPlans') {
+    result = getMonthlyPlans(e.parameter.month);
   } else {
     result = { error: 'unknown action' };
   }
@@ -67,6 +75,12 @@ function doPost(e) {
     result = updatePassword(data.id, data.currentPassword, data.newPassword);
   } else if (action === 'adminUpdateReport') {
     result = adminUpdateReport(data, data.adminName);
+  } else if (action === 'saveTeam') {
+    result = saveTeam(data);
+  } else if (action === 'deleteTeam') {
+    result = deleteTeam(data.teamId);
+  } else if (action === 'saveMonthlyPlan') {
+    result = saveMonthlyPlan(data);
   } else {
     result = { error: 'unknown action' };
   }
@@ -383,6 +397,8 @@ function getMembers() {
     if (obj.planDays !== undefined) obj.planDays = Number(obj.planDays) || 0;
     if (obj.isManager !== undefined)
       obj.isManager = obj.isManager === true || obj.isManager === 'true' || obj.isManager === 'TRUE';
+    if (obj.role === 'leader') obj.isManager = true;
+    if (obj.teamId !== undefined) obj.teamId = String(obj.teamId || '');
     delete obj.password;
     return obj;
   });
@@ -409,9 +425,10 @@ function saveMembers(members) {
   sheet.appendRow(MEMBER_HEADERS);
   members.forEach(m => {
     const password = existingPasswords[m.id] || 'top2024';
+    const isManager = m.role === 'leader' ? true : (m.isManager || false);
     sheet.appendRow([
       m.id || '', m.name || '', m.role || 'closer', m.target || 0,
-      m.isManager || false, password, m.planDays || 0
+      isManager, password, m.planDays || 0, m.teamId || ''
     ]);
   });
   return { success: true };
@@ -492,6 +509,97 @@ function migrateAddPasswordColumn() {
   for (let i = 1; i < rows.length; i++) {
     sheet.getRange(i + 1, col).setValue('top2024');
   }
+}
+
+// ── チーム管理 ────────────────────────────────────────────
+
+function getTeams() {
+  const sheet = getSheet('teams');
+  if (sheet.getLastRow() === 0) { sheet.appendRow(TEAM_HEADERS); return { teams: [] }; }
+  const rows = sheet.getDataRange().getValues();
+  const h = rows[0];
+  if (String(h[0]) !== 'teamId') { sheet.clearContents(); sheet.appendRow(TEAM_HEADERS); return { teams: [] }; }
+  const teams = rows.slice(1)
+    .map(row => { const o = {}; h.forEach((k, i) => { o[k] = row[i]; }); return o; })
+    .filter(t => t.teamId);
+  return { teams };
+}
+
+function saveTeam(data) {
+  const sheet = getSheet('teams');
+  if (sheet.getLastRow() === 0) sheet.appendRow(TEAM_HEADERS);
+  const rows = sheet.getDataRange().getValues();
+  const h = rows[0];
+  if (String(h[0]) !== 'teamId') { sheet.clearContents(); sheet.appendRow(TEAM_HEADERS); }
+
+  const allRows = sheet.getDataRange().getValues();
+  const tidIdx = allRows[0].indexOf('teamId');
+  const nameIdx = allRows[0].indexOf('teamName');
+
+  if (data.teamId) {
+    for (let i = 1; i < allRows.length; i++) {
+      if (String(allRows[i][tidIdx]) === data.teamId) {
+        if (nameIdx >= 0) sheet.getRange(i + 1, nameIdx + 1).setValue(data.teamName || '');
+        return { success: true, teamId: data.teamId };
+      }
+    }
+  }
+  const teamId = 'team_' + Date.now();
+  sheet.appendRow([teamId, data.teamName || '', new Date()]);
+  return { success: true, teamId };
+}
+
+function deleteTeam(teamId) {
+  const sheet = getSheet('teams');
+  if (sheet.getLastRow() <= 1) return { success: false };
+  const rows = sheet.getDataRange().getValues();
+  const tidIdx = rows[0].indexOf('teamId');
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][tidIdx]) === teamId) {
+      sheet.deleteRow(i + 1);
+      return { success: true };
+    }
+  }
+  return { success: false };
+}
+
+// ── 月次計画 ──────────────────────────────────────────────
+
+function getMonthlyPlans(month) {
+  const sheet = getSheet('月次計画');
+  if (sheet.getLastRow() === 0) { sheet.appendRow(MONTHLY_PLAN_HEADERS); return { plans: [] }; }
+  const rows = sheet.getDataRange().getValues();
+  const h = rows[0];
+  if (String(h[0]) !== 'memberId') { sheet.clearContents(); sheet.appendRow(MONTHLY_PLAN_HEADERS); return { plans: [] }; }
+  const monthIdx = h.indexOf('month');
+  const plans = rows.slice(1)
+    .map(row => { const o = {}; h.forEach((k, i) => { o[k] = row[i]; }); return o; })
+    .filter(p => !month || String(p.month) === month);
+  return { plans };
+}
+
+function saveMonthlyPlan(data) {
+  const sheet = getSheet('月次計画');
+  if (sheet.getLastRow() === 0) sheet.appendRow(MONTHLY_PLAN_HEADERS);
+  const allRows = sheet.getDataRange().getValues();
+  const h = allRows[0];
+  if (String(h[0]) !== 'memberId') { sheet.clearContents(); sheet.appendRow(MONTHLY_PLAN_HEADERS); }
+  const rows2 = sheet.getDataRange().getValues();
+  const h2 = rows2[0];
+  const midIdx = h2.indexOf('memberId');
+  const moIdx = h2.indexOf('month');
+  const rowValues = h2.map(k => {
+    if (k === 'submittedAt') return new Date();
+    return data[k] !== undefined ? data[k] : '';
+  });
+  for (let i = 1; i < rows2.length; i++) {
+    if (String(rows2[i][midIdx]) === data.memberId && String(rows2[i][moIdx]) === data.month) {
+      sheet.getRange(i + 1, 1, 1, h2.length).setValues([rowValues]);
+      return { success: true };
+    }
+  }
+  sheet.appendRow(rowValues);
+  return { success: true };
 }
 
 // ── 集計ビュー（saveReport時に自動更新）─────────────────
