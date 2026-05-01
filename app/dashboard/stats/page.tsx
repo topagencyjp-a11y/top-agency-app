@@ -3,7 +3,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { MEMBERS, TEAM_TARGET as BASE_TEAM_TARGET, Team } from '@/lib/members';
 import { loadMembers } from '@/lib/memberStore';
-import { getReports, getMonthlySummary, getAvailableMonths, getTeams, adminUpdateReport } from '@/lib/api';
+import { getReports, getMonthlySummary, getAvailableMonths, getTeams, adminUpdateReport, getMonthlyPlans } from '@/lib/api';
+import type { MonthlyPlan } from '@/lib/members';
 import { calcMemberStats, calcTeamStats, getPeriodReports, MemberStats } from '@/lib/calcStats';
 
 type Period = 'month' | 'week' | string;
@@ -116,6 +117,7 @@ export default function StatsPage() {
   const [animated, setAnimated] = useState(false);
   const [editModal, setEditModal] = useState<EditModal>(null);
   const [editSaving, setEditSaving] = useState(false);
+  const [monthlyPlans, setMonthlyPlans] = useState<MonthlyPlan[]>([]);
   const initialDone = useRef(false);
 
   const loadData = useCallback(async () => {
@@ -164,6 +166,14 @@ export default function StatsPage() {
     document.addEventListener('visibilitychange', onVisible);
     return () => { clearInterval(interval); document.removeEventListener('visibilitychange', onVisible); };
   }, [loadData]);
+
+  // Load monthly plans whenever period changes
+  useEffect(() => {
+    const month = (period === 'month' || period === 'week')
+      ? (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`; })()
+      : period;
+    getMonthlyPlans(month).then(setMonthlyPlans);
+  }, [period]);
 
   // Re-trigger bar animation on period change
   useEffect(() => {
@@ -220,8 +230,20 @@ export default function StatsPage() {
   // ── derived stats ──────────────────────────────────────────────────────────
 
   const filteredMembers = selectedTeam === 'all' ? members : members.filter(m => m.teamId === selectedTeam);
+
+  // Merge monthly plan (target / planDays) into member objects before stats calculation
+  const effectiveMembers = filteredMembers.map(m => {
+    const plan = monthlyPlans.find(p => p.memberId === m.id);
+    if (!plan) return m;
+    return {
+      ...m,
+      target:   Number(plan.monthlyTarget) || m.target,
+      planDays: Number(plan.planDays)      || m.planDays || 20,
+    };
+  });
+
   const periodReports = getPeriodReports(allReports, period);
-  const memberStats   = filteredMembers.map(m => calcMemberStats(periodReports, m, period));
+  const memberStats   = effectiveMembers.map(m => calcMemberStats(periodReports, m, period));
   const teamTarget    = memberStats.reduce((s, m) => s + m.target, 0) || BASE_TEAM_TARGET;
   const teamStats     = calcTeamStats(memberStats, teamTarget);
 
