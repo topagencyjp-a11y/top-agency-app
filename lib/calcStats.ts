@@ -1,4 +1,4 @@
-import { Member } from './members';
+import { Member, MonthlyPlan } from './members';
 
 export type MemberStats = {
   name: string;
@@ -33,6 +33,19 @@ export type TeamStats = {
   totalMainMeet: number;
   totalNegotiation: number;
 };
+
+export function applyMonthlyPlans(members: Member[], plans: MonthlyPlan[]): Member[] {
+  if (!plans.length) return members;
+  return members.map(m => {
+    const plan = plans.find(p => p.memberId === m.id);
+    if (!plan) return m;
+    return {
+      ...m,
+      target:   Number(plan.monthlyTarget) || m.target,
+      planDays: Number(plan.planDays)      || m.planDays || 20,
+    };
+  });
+}
 
 function n(val: unknown): number {
   return Number(val) || 0;

@@ -2,8 +2,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { loadMembers } from '@/lib/memberStore';
-import { getMembersFromGAS, getReports } from '@/lib/api';
-import { getPeriodReports, calcMemberStats, MemberStats } from '@/lib/calcStats';
+import { getMembersFromGAS, getReports, getMonthlyPlans } from '@/lib/api';
+import { getPeriodReports, calcMemberStats, applyMonthlyPlans, MemberStats } from '@/lib/calcStats';
+import type { MonthlyPlan } from '@/lib/members';
 import { MEMBERS as DEFAULT_MEMBERS } from '@/lib/members';
 
 // ── Funnel helpers ──────────────────────────────────────────────────────────
@@ -110,6 +111,7 @@ export default function PersonalPage() {
   const [user, setUser] = useState<Record<string, any> | null>(null);
   const [reports, setReports] = useState<Record<string, any>[]>([]);
   const [members, setMembers] = useState(DEFAULT_MEMBERS);
+  const [monthlyPlans, setMonthlyPlans] = useState<MonthlyPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewingMember, setViewingMember] = useState('');
   const [showPicker, setShowPicker] = useState(false);
@@ -130,6 +132,7 @@ export default function PersonalPage() {
     const stored = localStorage.getItem('reports');
     if (stored) { setReports(JSON.parse(stored)); setLoading(false); initialLoadDone.current = true; }
     loadData();
+    getMonthlyPlans(thisMonth).then(setMonthlyPlans);
 
     const interval = setInterval(loadData, 20000);
     const onVisible = () => { if (document.visibilityState === 'visible') loadData(); };
@@ -157,7 +160,8 @@ export default function PersonalPage() {
   const thisMonthReports = getPeriodReports(reports, 'month');
   const lastMonthReports = reports.filter(r => String(r.date).startsWith(lastMonth));
 
-  const viewMember = members.find(m => m.name === viewingMember);
+  const effectiveMembers = applyMonthlyPlans(members, monthlyPlans);
+  const viewMember = effectiveMembers.find(m => m.name === viewingMember);
   const stats: MemberStats | null = viewMember
     ? calcMemberStats(thisMonthReports, viewMember, 'month')
     : null;
@@ -168,7 +172,7 @@ export default function PersonalPage() {
     : { meetRate: 0, mainRate: 0, negRate: 0, contractRate: 0, totalRate: 0 };
 
   // Team funnel aggregate
-  const allStats = members.map(m => calcMemberStats(thisMonthReports, m, 'month'));
+  const allStats = effectiveMembers.map(m => calcMemberStats(thisMonthReports, m, 'month'));
   const teamAgg = {
     visits:      allStats.reduce((s, m) => s + m.visits, 0),
     netMeet:     allStats.reduce((s, m) => s + m.netMeet, 0),

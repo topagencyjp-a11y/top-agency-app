@@ -5,7 +5,7 @@ import { MEMBERS, TEAM_TARGET as BASE_TEAM_TARGET, Team } from '@/lib/members';
 import { loadMembers } from '@/lib/memberStore';
 import { getReports, getMonthlySummary, getAvailableMonths, getTeams, adminUpdateReport, getMonthlyPlans } from '@/lib/api';
 import type { MonthlyPlan } from '@/lib/members';
-import { calcMemberStats, calcTeamStats, getPeriodReports, MemberStats } from '@/lib/calcStats';
+import { calcMemberStats, calcTeamStats, getPeriodReports, applyMonthlyPlans, MemberStats } from '@/lib/calcStats';
 
 type Period = 'month' | 'week' | string;
 
@@ -229,21 +229,10 @@ export default function StatsPage() {
 
   // ── derived stats ──────────────────────────────────────────────────────────
 
-  const filteredMembers = selectedTeam === 'all' ? members : members.filter(m => m.teamId === selectedTeam);
-
-  // Merge monthly plan (target / planDays) into member objects before stats calculation
-  const effectiveMembers = filteredMembers.map(m => {
-    const plan = monthlyPlans.find(p => p.memberId === m.id);
-    if (!plan) return m;
-    return {
-      ...m,
-      target:   Number(plan.monthlyTarget) || m.target,
-      planDays: Number(plan.planDays)      || m.planDays || 20,
-    };
-  });
-
-  const periodReports = getPeriodReports(allReports, period);
-  const memberStats   = effectiveMembers.map(m => calcMemberStats(periodReports, m, period));
+  const filteredMembers  = selectedTeam === 'all' ? members : members.filter(m => m.teamId === selectedTeam);
+  const effectiveMembers = applyMonthlyPlans(filteredMembers, monthlyPlans);
+  const periodReports    = getPeriodReports(allReports, period);
+  const memberStats      = effectiveMembers.map(m => calcMemberStats(periodReports, m, period));
   const teamTarget    = memberStats.reduce((s, m) => s + m.target, 0) || BASE_TEAM_TARGET;
   const teamStats     = calcTeamStats(memberStats, teamTarget);
 
