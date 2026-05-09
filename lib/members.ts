@@ -6,6 +6,7 @@ export type Member = {
   isManager?: boolean;
   teamId?: string;
   planDays?: number;
+  workedDaysOverride?: number;
 };
 
 export type Team = { teamId: string; teamName: string };
@@ -15,6 +16,7 @@ export type MonthlyPlan = {
   month: string;
   planDays: number;
   monthlyTarget: number;
+  workedDaysOverride?: number;
   submittedBy: string;
 };
 

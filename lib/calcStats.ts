@@ -41,8 +41,9 @@ export function applyMonthlyPlans(members: Member[], plans: MonthlyPlan[]): Memb
     if (!plan) return m;
     return {
       ...m,
-      target:   Number(plan.monthlyTarget) || m.target,
-      planDays: Number(plan.planDays)      || m.planDays || 20,
+      target:              Number(plan.monthlyTarget)    || m.target,
+      planDays:            Number(plan.planDays)         || m.planDays || 20,
+      workedDaysOverride:  plan.workedDaysOverride != null ? Number(plan.workedDaysOverride) : undefined,
     };
   });
 }
@@ -110,7 +111,8 @@ export function calcMemberStats(
   const mainMeet    = sum(reports, 'mainMeet');
   const negotiation = sum(reports, 'negotiation');
 
-  const workedDays = reports.filter(r => n(r.visits) > 0 || n(r.acquired) > 0).length;
+  const workedDaysFromReports = reports.filter(r => n(r.visits) > 0 || n(r.acquired) > 0).length;
+  const workedDays = member.workedDaysOverride ?? workedDaysFromReports;
   const latestPlanDays = reports.reduce((v, r) => n(r.planDays) > 0 ? n(r.planDays) : v, 0);
   // member.planDays (from monthly plan settings) takes priority over report-embedded value
   const planDays   = member.planDays || latestPlanDays || (period === 'week' ? 5 : 20);

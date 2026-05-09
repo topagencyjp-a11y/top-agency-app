@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { MEMBERS, TEAM_TARGET as BASE_TEAM_TARGET, Team } from '@/lib/members';
 import { loadMembers } from '@/lib/memberStore';
-import { getReports, getMonthlySummary, getAvailableMonths, getTeams, adminUpdateReport, getMonthlyPlans } from '@/lib/api';
+import { getReports, getMonthlySummary, getAvailableMonths, getTeams, adminUpdateReport, getMonthlyPlans, saveMonthlyPlans } from '@/lib/api';
 import type { MonthlyPlan } from '@/lib/members';
 import { calcMemberStats, calcTeamStats, getPeriodReports, applyMonthlyPlans, MemberStats } from '@/lib/calcStats';
 
@@ -100,8 +100,15 @@ function EmptyState({ period }: { period: string }) {
 
 type EditModal = {
   memberName: string;
+  memberId: string;
+  planMonth: string;        // YYYY-MM of the current view period
+  // daily
   date: string;
   acquired: number;
+  // monthly plan overrides
+  target: number;
+  planDays: number;
+  workedDaysOverride: number | '';  // '' = no override (auto-calc)
 } | null;
 
 export default function StatsPage() {
@@ -183,9 +190,25 @@ export default function StatsPage() {
   }, [period]);
 
   const openEditModal = (memberName: string) => {
-    const today = new Date().toISOString().slice(0, 10);
+    const raw = members.find(m => m.name === memberName);
+    if (!raw) return;
+    const now = new Date();
+    const pm = (period === 'month' || period === 'week')
+      ? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+      : period;
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const plan = monthlyPlans.find(p => p.memberId === raw.id);
     const existing = allReports.find(r => r.name === memberName && r.date === today);
-    setEditModal({ memberName, date: today, acquired: Number(existing?.acquired) || 0 });
+    setEditModal({
+      memberName,
+      memberId: raw.id,
+      planMonth: pm,
+      date: today,
+      acquired: Number(existing?.acquired) || 0,
+      target:   (plan ? Number(plan.monthlyTarget) : 0) || raw.target,
+      planDays: (plan ? Number(plan.planDays) : 0) || raw.planDays || 20,
+      workedDaysOverride: plan?.workedDaysOverride != null ? Number(plan.workedDaysOverride) : '',
+    });
   };
 
   const handleEditDateChange = (date: string) => {
@@ -198,11 +221,24 @@ export default function StatsPage() {
     if (!editModal || !user) return;
     setEditSaving(true);
     const existing = allReports.find(r => r.name === editModal.memberName && r.date === editModal.date) || {};
-    await adminUpdateReport(
-      { ...existing, acquired: editModal.acquired, name: editModal.memberName, date: editModal.date },
-      String(user.name)
-    );
-    await loadData();
+    await Promise.all([
+      adminUpdateReport(
+        { ...existing, acquired: editModal.acquired, name: editModal.memberName, date: editModal.date },
+        String(user.name)
+      ),
+      saveMonthlyPlans([{
+        memberId: editModal.memberId,
+        month: editModal.planMonth,
+        planDays: editModal.planDays,
+        monthlyTarget: editModal.target,
+        workedDaysOverride: editModal.workedDaysOverride === '' ? undefined : editModal.workedDaysOverride,
+        submittedBy: String(user.name),
+      }]),
+    ]);
+    await Promise.all([
+      loadData(),
+      getMonthlyPlans(editModal.planMonth).then(setMonthlyPlans),
+    ]);
     setEditModal(null);
     setEditSaving(false);
   };
@@ -243,27 +279,63 @@ export default function StatsPage() {
         <button onClick={loadData} className="text-gray-400 active:opacity-60 transition-opacity select-none">🔄</button>
       </div>
 
-      {/* 獲得件数修正モーダル */}
+      {/* 数値修正モーダル */}
       {editModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-end justify-center p-4" onClick={() => setEditModal(null)}>
           <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <div className="font-bold text-gray-900">{editModal.memberName} の獲得件数を修正</div>
+              <div className="font-bold text-gray-900">{editModal.memberName} の数値を修正</div>
               <button onClick={() => setEditModal(null)} className="text-gray-400 text-lg">✕</button>
             </div>
-            <div>
-              <label className="text-xs text-gray-600 font-medium">日付</label>
-              <input type="date" value={editModal.date}
-                onChange={e => handleEditDateChange(e.target.value)}
-                className="w-full mt-1 border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+
+            {/* 獲得件数（日次） */}
+            <div className="bg-blue-50 rounded-xl p-3 space-y-3">
+              <div className="text-xs font-bold text-blue-700">現状件数（日次修正）</div>
+              <div>
+                <label className="text-xs text-gray-600 font-medium">日付</label>
+                <input type="date" value={editModal.date}
+                  onChange={e => handleEditDateChange(e.target.value)}
+                  className="w-full mt-1 border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-600 font-medium">獲得件数</label>
+                <input type="number" min="0"
+                  value={editModal.acquired}
+                  onChange={e => setEditModal({ ...editModal, acquired: Math.max(0, +e.target.value) })}
+                  className="w-full mt-1 border border-gray-300 rounded-xl px-3 py-2 text-xl text-center font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+              </div>
             </div>
-            <div>
-              <label className="text-xs text-gray-600 font-medium">獲得件数</label>
-              <input type="number" min="0"
-                value={editModal.acquired}
-                onChange={e => setEditModal({ ...editModal, acquired: Math.max(0, +e.target.value) })}
-                className="w-full mt-1 border border-gray-300 rounded-xl px-3 py-2 text-2xl text-center font-bold focus:outline-none focus:ring-2 focus:ring-blue-500" />
+
+            {/* 月次計画数値 */}
+            <div className="bg-amber-50 rounded-xl p-3 space-y-3">
+              <div className="text-xs font-bold text-amber-700">月次数値（{editModal.planMonth.replace('-', '/')}）</div>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-xs text-gray-600 font-medium">目標</label>
+                  <input type="number" min="0"
+                    value={editModal.target}
+                    onChange={e => setEditModal({ ...editModal, target: Math.max(0, +e.target.value) })}
+                    className="w-full mt-1 border border-gray-300 rounded-xl px-2 py-2 text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-600 font-medium">計画稼働</label>
+                  <input type="number" min="1" max="31"
+                    value={editModal.planDays}
+                    onChange={e => setEditModal({ ...editModal, planDays: Math.max(1, +e.target.value) })}
+                    className="w-full mt-1 border border-gray-300 rounded-xl px-2 py-2 text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-600 font-medium">実稼働</label>
+                  <input type="number" min="0" max="31"
+                    placeholder="自動"
+                    value={editModal.workedDaysOverride}
+                    onChange={e => setEditModal({ ...editModal, workedDaysOverride: e.target.value === '' ? '' : Math.max(0, +e.target.value) })}
+                    className="w-full mt-1 border border-gray-300 rounded-xl px-2 py-2 text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white" />
+                </div>
+              </div>
+              <p className="text-xs text-gray-400">実稼働を空欄にすると日報から自動計算</p>
             </div>
+
             <button onClick={saveEdit} disabled={editSaving}
               className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl text-sm active:scale-95 transition-all disabled:opacity-40">
               {editSaving ? '保存中...' : '上書き保存'}

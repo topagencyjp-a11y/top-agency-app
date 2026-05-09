@@ -18,7 +18,7 @@ const MEMBER_HEADERS = ['id', 'name', 'role', 'target', 'isManager', 'password',
 
 const TEAM_HEADERS = ['teamId', 'teamName', 'createdAt'];
 
-const MONTHLY_PLAN_HEADERS = ['memberId', 'month', 'planDays', 'monthlyTarget', 'submittedBy', 'submittedAt'];
+const MONTHLY_PLAN_HEADERS = ['memberId', 'month', 'planDays', 'monthlyTarget', 'workedDaysOverride', 'submittedBy', 'submittedAt'];
 
 const SUMMARY_HEADERS = [
   'month', 'name', 'totalVisits', 'totalNetMeet', 'totalMainMeet',
