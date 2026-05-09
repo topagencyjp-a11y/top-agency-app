@@ -101,7 +101,7 @@ function EmptyState({ period }: { period: string }) {
 type EditModal = {
   memberName: string;
   date: string;
-  form: { visits: number; netMeet: number; mainMeet: number; negotiation: number; acquired: number };
+  acquired: number;
 } | null;
 
 export default function StatsPage() {
@@ -185,33 +185,13 @@ export default function StatsPage() {
   const openEditModal = (memberName: string) => {
     const today = new Date().toISOString().slice(0, 10);
     const existing = allReports.find(r => r.name === memberName && r.date === today);
-    setEditModal({
-      memberName,
-      date: today,
-      form: {
-        visits:      Number(existing?.visits)      || 0,
-        netMeet:     Number(existing?.netMeet)      || 0,
-        mainMeet:    Number(existing?.mainMeet)     || 0,
-        negotiation: Number(existing?.negotiation)  || 0,
-        acquired:    Number(existing?.acquired)     || 0,
-      },
-    });
+    setEditModal({ memberName, date: today, acquired: Number(existing?.acquired) || 0 });
   };
 
   const handleEditDateChange = (date: string) => {
     if (!editModal) return;
     const existing = allReports.find(r => r.name === editModal.memberName && r.date === date);
-    setEditModal({
-      ...editModal,
-      date,
-      form: {
-        visits:      Number(existing?.visits)      || 0,
-        netMeet:     Number(existing?.netMeet)      || 0,
-        mainMeet:    Number(existing?.mainMeet)     || 0,
-        negotiation: Number(existing?.negotiation)  || 0,
-        acquired:    Number(existing?.acquired)     || 0,
-      },
-    });
+    setEditModal({ ...editModal, date, acquired: Number(existing?.acquired) || 0 });
   };
 
   const saveEdit = async () => {
@@ -219,7 +199,7 @@ export default function StatsPage() {
     setEditSaving(true);
     const existing = allReports.find(r => r.name === editModal.memberName && r.date === editModal.date) || {};
     await adminUpdateReport(
-      { ...existing, ...editModal.form, name: editModal.memberName, date: editModal.date },
+      { ...existing, acquired: editModal.acquired, name: editModal.memberName, date: editModal.date },
       String(user.name)
     );
     await loadData();
@@ -263,12 +243,12 @@ export default function StatsPage() {
         <button onClick={loadData} className="text-gray-400 active:opacity-60 transition-opacity select-none">🔄</button>
       </div>
 
-      {/* 数値編集モーダル */}
+      {/* 獲得件数修正モーダル */}
       {editModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-end justify-center p-4" onClick={() => setEditModal(null)}>
           <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <div className="font-bold text-gray-900">{editModal.memberName} の数値を修正</div>
+              <div className="font-bold text-gray-900">{editModal.memberName} の獲得件数を修正</div>
               <button onClick={() => setEditModal(null)} className="text-gray-400 text-lg">✕</button>
             </div>
             <div>
@@ -277,22 +257,12 @@ export default function StatsPage() {
                 onChange={e => handleEditDateChange(e.target.value)}
                 className="w-full mt-1 border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              {([
-                { key: 'visits',      label: '訪問数' },
-                { key: 'netMeet',     label: '対面数' },
-                { key: 'mainMeet',    label: '主権対面' },
-                { key: 'negotiation', label: '商談' },
-                { key: 'acquired',    label: '獲得数' },
-              ] as const).map(item => (
-                <div key={item.key}>
-                  <label className="text-xs text-gray-600 font-medium">{item.label}</label>
-                  <input type="number" min="0"
-                    value={editModal.form[item.key]}
-                    onChange={e => setEditModal({ ...editModal, form: { ...editModal.form, [item.key]: Math.max(0, +e.target.value) } })}
-                    className="w-full mt-1 border border-gray-300 rounded-xl px-3 py-2 text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-              ))}
+            <div>
+              <label className="text-xs text-gray-600 font-medium">獲得件数</label>
+              <input type="number" min="0"
+                value={editModal.acquired}
+                onChange={e => setEditModal({ ...editModal, acquired: Math.max(0, +e.target.value) })}
+                className="w-full mt-1 border border-gray-300 rounded-xl px-3 py-2 text-2xl text-center font-bold focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <button onClick={saveEdit} disabled={editSaving}
               className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl text-sm active:scale-95 transition-all disabled:opacity-40">
