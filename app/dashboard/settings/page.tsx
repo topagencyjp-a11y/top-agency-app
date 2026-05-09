@@ -39,6 +39,7 @@ export default function SettingsPage() {
   const [planMonth, setPlanMonth] = useState(thisMonth);
   const [plans, setPlans] = useState<Record<string, { planDays: number; monthlyTarget: number }>>({});
   const [planSaving, setPlanSaving] = useState(false);
+  const [planMsg, setPlanMsg] = useState('');
 
   // パスワード変更
   const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
@@ -168,7 +169,9 @@ export default function SettingsPage() {
       }));
     const result = await saveMonthlyPlans(payload);
     setPlanSaving(false);
-    flash(result.success ? '月次計画を保存しました' : '保存に失敗しました。再度お試しください');
+    const msg = result.success ? '✅ 保存しました' : '❌ 保存に失敗しました。再度お試しください';
+    setPlanMsg(msg);
+    setTimeout(() => setPlanMsg(''), 4000);
   };
 
   const setPlan = (memberId: string, field: 'planDays' | 'monthlyTarget', value: number) => {
@@ -426,6 +429,11 @@ export default function SettingsPage() {
                   className="w-full bg-green-600 text-white font-bold py-3 rounded-xl text-sm active:scale-95 transition-all select-none disabled:opacity-40">
                   {planSaving ? '保存中...' : `💾 ${planMonth.replace('-', '/')} の計画を保存`}
                 </button>
+                {planMsg && (
+                  <div className={`text-sm font-bold text-center py-2 rounded-xl ${planMsg.startsWith('✅') ? 'text-green-600' : 'text-red-500'}`}>
+                    {planMsg}
+                  </div>
+                )}
               </div>
             </div>
 
