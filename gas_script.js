@@ -567,16 +567,27 @@ function deleteTeam(teamId) {
 
 // ── 月次計画 ──────────────────────────────────────────────
 
+// Google Sheetsが日付型に自動変換した値を "YYYY-MM" 文字列に戻す
+function toYYYYMM(val) {
+  if (val instanceof Date) {
+    return val.getFullYear() + '-' + String(val.getMonth() + 1).padStart(2, '0');
+  }
+  return String(val).slice(0, 7);
+}
+
 function getMonthlyPlans(month) {
   const sheet = getSheet('月次計画');
   if (sheet.getLastRow() === 0) { sheet.appendRow(MONTHLY_PLAN_HEADERS); return { plans: [] }; }
   const rows = sheet.getDataRange().getValues();
   const h = rows[0];
   if (String(h[0]) !== 'memberId') { sheet.clearContents(); sheet.appendRow(MONTHLY_PLAN_HEADERS); return { plans: [] }; }
-  const monthIdx = h.indexOf('month');
   const plans = rows.slice(1)
-    .map(row => { const o = {}; h.forEach((k, i) => { o[k] = row[i]; }); return o; })
-    .filter(p => !month || String(p.month) === month);
+    .map(row => {
+      const o = {};
+      h.forEach((k, i) => { o[k] = k === 'month' ? toYYYYMM(row[i]) : row[i]; });
+      return o;
+    })
+    .filter(p => !month || p.month === month);
   return { plans };
 }
 
@@ -589,13 +600,13 @@ function saveMonthlyPlan(data) {
   const rows2 = sheet.getDataRange().getValues();
   const h2 = rows2[0];
   const midIdx = h2.indexOf('memberId');
-  const moIdx = h2.indexOf('month');
+  const moIdx  = h2.indexOf('month');
   const rowValues = h2.map(k => {
     if (k === 'submittedAt') return new Date();
     return data[k] !== undefined ? data[k] : '';
   });
   for (let i = 1; i < rows2.length; i++) {
-    if (String(rows2[i][midIdx]) === data.memberId && String(rows2[i][moIdx]) === data.month) {
+    if (String(rows2[i][midIdx]) === data.memberId && toYYYYMM(rows2[i][moIdx]) === data.month) {
       sheet.getRange(i + 1, 1, 1, h2.length).setValues([rowValues]);
       return { success: true };
     }
