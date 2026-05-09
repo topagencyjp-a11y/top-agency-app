@@ -112,7 +112,8 @@ export function calcMemberStats(
 
   const workedDays = reports.filter(r => n(r.visits) > 0 || n(r.acquired) > 0).length;
   const latestPlanDays = reports.reduce((v, r) => n(r.planDays) > 0 ? n(r.planDays) : v, 0);
-  const planDays   = latestPlanDays || (period === 'week' ? 5 : 20);
+  // member.planDays (from monthly plan settings) takes priority over report-embedded value
+  const planDays   = member.planDays || latestPlanDays || (period === 'week' ? 5 : 20);
   const remainDays = Math.max(0, planDays - workedDays);
 
   const productivity = workedDays > 0 ? acquired / workedDays : 0;
