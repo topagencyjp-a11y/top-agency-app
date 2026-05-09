@@ -241,7 +241,8 @@ export default function StatsPage() {
   const maxForecast    = Math.max(...memberStats.map(m => m.forecast), 1);
   const maxAcquired    = Math.max(...memberStats.map(m => m.acquired), 1);
 
-  const isEmpty = periodReports.length === 0 && !loading;
+  // Show empty only when no reports AND no monthly plans — targets alone are enough to render
+  const isEmpty = periodReports.length === 0 && monthlyPlans.length === 0 && !loading;
 
   const periodLabel =
     period === 'month' ? '今月' :
