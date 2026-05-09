@@ -6,10 +6,11 @@ import { loadMembers, saveMembers } from '@/lib/memberStore';
 import {
   getMembersFromGAS, saveMembersToGAS, updatePasswordInGAS,
   getTeams, saveTeam, deleteTeam,
-  getMonthlyPlans, saveMonthlyPlan,
+  getMonthlyPlans, saveMonthlyPlans,
 } from '@/lib/api';
 
-const thisMonth = new Date().toISOString().slice(0, 7);
+const _now = new Date();
+const thisMonth = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}`;
 
 const ROLE_LABELS: Record<string, string> = {
   closer: 'クローザー',
@@ -157,19 +158,17 @@ export default function SettingsPage() {
   const savePlans = async () => {
     if (!user) return;
     setPlanSaving(true);
-    await Promise.all(
-      members.map(m => {
-        const p = plans[m.id];
-        if (!p) return Promise.resolve();
-        return saveMonthlyPlan({
-          memberId: m.id, month: planMonth,
-          planDays: p.planDays, monthlyTarget: p.monthlyTarget,
-          submittedBy: user.name,
-        } as MonthlyPlan);
-      })
-    );
+    const payload: MonthlyPlan[] = members
+      .filter(m => plans[m.id])
+      .map(m => ({
+        memberId: m.id, month: planMonth,
+        planDays: plans[m.id].planDays,
+        monthlyTarget: plans[m.id].monthlyTarget,
+        submittedBy: user.name,
+      }));
+    const result = await saveMonthlyPlans(payload);
     setPlanSaving(false);
-    flash('月次計画を保存しました');
+    flash(result.success ? '月次計画を保存しました' : '保存に失敗しました。再度お試しください');
   };
 
   const setPlan = (memberId: string, field: 'planDays' | 'monthlyTarget', value: number) => {

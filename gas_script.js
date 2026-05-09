@@ -81,6 +81,8 @@ function doPost(e) {
     result = deleteTeam(data.teamId);
   } else if (action === 'saveMonthlyPlan') {
     result = saveMonthlyPlan(data);
+  } else if (action === 'saveMonthlyPlans') {
+    result = saveMonthlyPlansBatch(data.plans);
   } else {
     result = { error: 'unknown action' };
   }
@@ -600,6 +602,18 @@ function saveMonthlyPlan(data) {
   }
   sheet.appendRow(rowValues);
   return { success: true };
+}
+
+function saveMonthlyPlansBatch(plans) {
+  if (!plans || !plans.length) return { success: true };
+  const lock = LockService.getScriptLock();
+  lock.tryLock(15000);
+  try {
+    plans.forEach(p => saveMonthlyPlan(p));
+    return { success: true };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // ── 集計ビュー（saveReport時に自動更新）─────────────────

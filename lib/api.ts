@@ -153,6 +153,13 @@ export async function saveMonthlyPlan(d: MonthlyPlan): Promise<{ success: boolea
   } catch { return { success: false }; }
 }
 
+export async function saveMonthlyPlans(plans: MonthlyPlan[]): Promise<{ success: boolean }> {
+  try {
+    const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'saveMonthlyPlans', plans }) });
+    return await res.json();
+  } catch { return { success: false }; }
+}
+
 export async function updatePasswordInGAS(
   id: string,
   currentPassword: string,
