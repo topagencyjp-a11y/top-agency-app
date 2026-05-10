@@ -281,8 +281,8 @@ export default function StatsPage() {
 
       {/* 数値修正モーダル */}
       {editModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-end justify-center p-4" onClick={() => setEditModal(null)}>
-          <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-end justify-center p-4 pb-20" onClick={() => setEditModal(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4 overflow-y-auto max-h-[85vh]" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <div className="font-bold text-gray-900">{editModal.memberName} の数値を修正</div>
               <button onClick={() => setEditModal(null)} className="text-gray-400 text-lg">✕</button>
