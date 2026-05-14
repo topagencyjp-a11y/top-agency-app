@@ -1,4 +1,12 @@
-import type { Team, MonthlyPlan } from './members';
+import type { Member, Team, MonthlyPlan } from './members';
+import {
+  sbSaveReport, sbGetReports, sbAdminUpdateReport,
+  sbSaveShift,  sbGetShifts,
+  sbGetMembers, sbSaveMembers,
+  sbGetTeams,   sbSaveTeam, sbDeleteTeam,
+  sbGetMonthlyPlans, sbSaveMonthlyPlan, sbSaveMonthlyPlans,
+} from './supabase-db';
+import { isSupabaseConfigured } from './supabase';
 
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbwYGlW-oq8FIAdsHhin4pqUZICN_Ju39mhwkyohDBi3LIFZUZUklNaVMxrluRC05oOCvw/exec';
 
@@ -12,100 +20,211 @@ function toLocalDateStr(val: string): string {
   return local.toISOString().slice(0, 10);
 }
 
-export async function saveReport(data: any) {
-  try {
-    await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'saveReport', ...data }),
-    });
-  } catch (e) {
-    console.error(e);
-  }
+// ---- GAS 内部関数 ------------------------------------------
+
+async function gasPost(body: Record<string, unknown>) {
+  return fetch(GAS_URL, { method: 'POST', body: JSON.stringify(body) });
+}
+
+async function gasGet(params: Record<string, string>) {
+  const q = new URLSearchParams(params);
+  return fetch(`${GAS_URL}?${q}`);
+}
+
+// ---- Reports -----------------------------------------------
+
+export async function saveReport(data: Record<string, unknown>) {
+  await Promise.allSettled([
+    gasPost({ action: 'saveReport', ...data }),
+    sbSaveReport(data),
+  ]);
 }
 
 export async function getReports(
   params?: { name?: string; month?: string; week?: string } | string
-) {
-  try {
-    const p = typeof params === 'string' ? { name: params } : (params || {});
-    const query = new URLSearchParams({ action: 'getReports' });
-    if (p.name)  query.set('name',  p.name);
-    if (p.month) query.set('month', p.month);
-    if (p.week)  query.set('week',  p.week);
-    const res = await fetch(`${GAS_URL}?${query}`);
-    const data = await res.json();
-    return data.reports || [];
-  } catch {
-    return [];
+): Promise<Record<string, unknown>[]> {
+  const p = typeof params === 'string' ? { name: params } : (params ?? {});
+
+  // Supabase優先: データがあればそちらを返す
+  if (isSupabaseConfigured()) {
+    const sbRows = await sbGetReports(p);
+    if (sbRows.length > 0) return sbRows;
   }
+
+  // GASフォールバック
+  try {
+    const query: Record<string, string> = { action: 'getReports' };
+    if (p.name)  query.name  = p.name;
+    if (p.month) query.month = p.month;
+    if (p.week)  query.week  = p.week;
+    const res  = await gasGet(query);
+    const data = await res.json();
+    return data.reports ?? [];
+  } catch { return []; }
 }
 
 export async function getMonthlySummary(month: string) {
   try {
-    const res = await fetch(`${GAS_URL}?action=getMonthlySummary&month=${encodeURIComponent(month)}`);
+    const res  = await gasGet({ action: 'getMonthlySummary', month });
     const data = await res.json();
-    return data.summary || [];
-  } catch {
-    return [];
-  }
+    return data.summary ?? [];
+  } catch { return []; }
 }
 
 export async function adminUpdateReport(
-  data: any,
+  data: Record<string, unknown>,
   adminName: string
 ): Promise<{ success: boolean; error?: string }> {
-  try {
-    const res = await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'adminUpdateReport', ...data, adminName }),
-    });
-    return await res.json();
-  } catch {
-    return { success: false, error: '通信エラー' };
-  }
+  const [gasRes, sbRes] = await Promise.allSettled([
+    gasPost({ action: 'adminUpdateReport', ...data, adminName }).then(r => r.json()),
+    sbAdminUpdateReport(data, adminName),
+  ]);
+
+  const gasFailed = gasRes.status === 'rejected' || !(gasRes.value as { success?: boolean })?.success;
+  const sbOk      = sbRes.status === 'fulfilled' && (sbRes.value as { success: boolean }).success;
+
+  if (!gasFailed) return { success: true };
+  if (sbOk)       return { success: true };
+  return { success: false, error: '通信エラー' };
 }
+
+// ---- Shifts ------------------------------------------------
 
 export async function saveShift(name: string, date: string, status: string) {
-  try {
-    await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'saveShift', name, date, status }),
-    });
-  } catch (e) {
-    console.error(e);
-  }
+  await Promise.allSettled([
+    gasPost({ action: 'saveShift', name, date, status }),
+    sbSaveShift(name, date, status),
+  ]);
 }
 
-export async function getShifts() {
+export async function getShifts(): Promise<{ name: string; date: string; status: string }[]> {
+  if (isSupabaseConfigured()) {
+    const sbRows = await sbGetShifts();
+    if (sbRows.length > 0) {
+      return sbRows.map(s => ({
+        name:   String(s.name ?? ''),
+        date:   toLocalDateStr(String(s.date ?? '')),
+        status: String(s.status ?? ''),
+      }));
+    }
+  }
+
   try {
-    const res = await fetch(`${GAS_URL}?action=getShifts`);
+    const res  = await gasGet({ action: 'getShifts' });
     const data = await res.json();
-    return (data.shifts || []).map((s: any) => ({ ...s, date: toLocalDateStr(String(s.date)) }));
-  } catch {
-    return [];
-  }
+    return (data.shifts ?? []).map((s: Record<string, unknown>) => ({
+      name:   String(s.name ?? ''),
+      date:   toLocalDateStr(String(s.date ?? '')),
+      status: String(s.status ?? ''),
+    }));
+  } catch { return []; }
 }
 
-export async function getMembersFromGAS() {
+// ---- Members -----------------------------------------------
+
+export async function getMembersFromGAS(): Promise<Member[]> {
+  if (isSupabaseConfigured()) {
+    const sbRows = await sbGetMembers();
+    if (sbRows.length > 0) return sbRows as unknown as Member[];
+  }
+
   try {
-    const res = await fetch(`${GAS_URL}?action=getMembers`);
+    const res  = await gasGet({ action: 'getMembers' });
     const data = await res.json();
-    return data.members || [];
-  } catch {
-    return [];
-  }
+    return data.members ?? [];
+  } catch { return []; }
 }
 
-export async function saveMembersToGAS(members: any[]) {
-  try {
-    await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'saveMembers', members }),
-    });
-  } catch (e) {
-    console.error(e);
-  }
+export async function saveMembersToGAS(members: Member[]): Promise<void> {
+  await Promise.allSettled([
+    gasPost({ action: 'saveMembers', members }),
+    sbSaveMembers(members as unknown as Record<string, unknown>[]),
+  ]);
 }
+
+// ---- Teams -------------------------------------------------
+
+export async function getTeams(): Promise<Team[]> {
+  if (isSupabaseConfigured()) {
+    const sbRows = await sbGetTeams();
+    if (sbRows.length > 0) return sbRows;
+  }
+
+  try {
+    const res  = await gasGet({ action: 'getTeams' });
+    const data = await res.json();
+    return data.teams ?? [];
+  } catch { return []; }
+}
+
+export async function saveTeam(
+  d: { teamId?: string; teamName: string }
+): Promise<{ success: boolean; teamId?: string }> {
+  const [gasRes, sbRes] = await Promise.allSettled([
+    gasPost({ action: 'saveTeam', ...d }).then(r => r.json()),
+    sbSaveTeam(d),
+  ]);
+
+  if (sbRes.status === 'fulfilled' && (sbRes.value as { success: boolean }).success) {
+    return sbRes.value as { success: boolean; teamId?: string };
+  }
+  if (gasRes.status === 'fulfilled') return gasRes.value as { success: boolean; teamId?: string };
+  return { success: false };
+}
+
+export async function deleteTeam(teamId: string): Promise<{ success: boolean }> {
+  await Promise.allSettled([
+    gasPost({ action: 'deleteTeam', teamId }),
+    sbDeleteTeam(teamId),
+  ]);
+  return { success: true };
+}
+
+// ---- Monthly Plans -----------------------------------------
+
+export async function getMonthlyPlans(month: string): Promise<MonthlyPlan[]> {
+  if (isSupabaseConfigured()) {
+    const sbRows = await sbGetMonthlyPlans(month);
+    if (sbRows.length > 0) return sbRows;
+  }
+
+  try {
+    const res  = await gasGet({ action: 'getMonthlyPlans', month });
+    const data = await res.json();
+    return data.plans ?? [];
+  } catch { return []; }
+}
+
+export async function saveMonthlyPlan(d: MonthlyPlan): Promise<{ success: boolean }> {
+  await Promise.allSettled([
+    gasPost({ action: 'saveMonthlyPlan', ...d }),
+    sbSaveMonthlyPlan(d),
+  ]);
+  return { success: true };
+}
+
+export async function saveMonthlyPlans(plans: MonthlyPlan[]): Promise<{ success: boolean }> {
+  await Promise.allSettled([
+    gasPost({ action: 'saveMonthlyPlans', plans }),
+    sbSaveMonthlyPlans(plans),
+  ]);
+  return { success: true };
+}
+
+// ---- Password ----------------------------------------------
+
+export async function updatePasswordInGAS(
+  id: string,
+  currentPassword: string,
+  newPassword: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res  = await gasPost({ action: 'updatePassword', id, currentPassword, newPassword });
+    return await res.json();
+  } catch { return { success: false, error: '通信エラー' }; }
+}
+
+// ---- Utilities ---------------------------------------------
 
 export function getAvailableMonths(reports: Record<string, unknown>[]): string[] {
   const months = new Set<string>();
@@ -114,64 +233,4 @@ export function getAvailableMonths(reports: Record<string, unknown>[]): string[]
     if (/^\d{4}-\d{2}$/.test(d)) months.add(d);
   });
   return Array.from(months).sort().reverse();
-}
-
-export async function getTeams(): Promise<Team[]> {
-  try {
-    const res = await fetch(`${GAS_URL}?action=getTeams`);
-    const data = await res.json();
-    return data.teams || [];
-  } catch { return []; }
-}
-
-export async function saveTeam(d: { teamId?: string; teamName: string }): Promise<{ success: boolean; teamId?: string }> {
-  try {
-    const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'saveTeam', ...d }) });
-    return await res.json();
-  } catch { return { success: false }; }
-}
-
-export async function deleteTeam(teamId: string): Promise<{ success: boolean }> {
-  try {
-    const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'deleteTeam', teamId }) });
-    return await res.json();
-  } catch { return { success: false }; }
-}
-
-export async function getMonthlyPlans(month: string): Promise<MonthlyPlan[]> {
-  try {
-    const res = await fetch(`${GAS_URL}?action=getMonthlyPlans&month=${encodeURIComponent(month)}`);
-    const data = await res.json();
-    return data.plans || [];
-  } catch { return []; }
-}
-
-export async function saveMonthlyPlan(d: MonthlyPlan): Promise<{ success: boolean }> {
-  try {
-    const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'saveMonthlyPlan', ...d }) });
-    return await res.json();
-  } catch { return { success: false }; }
-}
-
-export async function saveMonthlyPlans(plans: MonthlyPlan[]): Promise<{ success: boolean }> {
-  try {
-    const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: 'saveMonthlyPlans', plans }) });
-    return await res.json();
-  } catch { return { success: false }; }
-}
-
-export async function updatePasswordInGAS(
-  id: string,
-  currentPassword: string,
-  newPassword: string
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    const res = await fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'updatePassword', id, currentPassword, newPassword }),
-    });
-    return await res.json();
-  } catch {
-    return { success: false, error: '通信エラー' };
-  }
 }
