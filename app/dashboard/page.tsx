@@ -44,6 +44,7 @@ export default function Dashboard() {
   const [areaTab, setAreaTab] = useState(1);
   const [areaQuery, setAreaQuery] = useState('');
   const [ispOther, setIspOther] = useState<Record<number, string>>({});
+  const [rawValues, setRawValues] = useState<Record<string, string>>({});
 
   const showToast = (type: 'success' | 'error', msg: string) => {
     setToast({ type, msg });
@@ -102,6 +103,7 @@ export default function Dashboard() {
     if (!keyChanged && formDirty.current) return;
     lastPopulatedKey.current = key;
     formDirty.current = false;
+    setRawValues({});
 
     const existing = reports.find(r => r.date === selectedDate && r.name === inputAsName);
     if (existing) {
@@ -407,9 +409,20 @@ export default function Dashboard() {
               <div className="flex items-center gap-2 ml-auto">
                 <button onClick={() => setForm({ ...form, [item.key]: Math.max(0, form[item.key] - 1) })}
                   className="w-11 h-11 bg-gray-200 rounded-full text-gray-700 font-bold text-lg active:scale-90 transition-all duration-150 select-none">−</button>
-                <input type="number" min="0" value={form[item.key]}
-                  onChange={e => setForm({ ...form, [item.key]: Math.max(0, parseInt(e.target.value) || 0) })}
-                  className="w-16 text-center font-bold text-xl text-gray-900 border border-gray-300 rounded-xl py-1 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={item.key in rawValues ? rawValues[item.key] : String(form[item.key])}
+                  onFocus={e => { setRawValues(prev => ({ ...prev, [item.key]: String(form[item.key]) })); e.currentTarget.select(); }}
+                  onChange={e => {
+                    const raw = e.target.value.replace(/[^0-9]/g, '');
+                    setRawValues(prev => ({ ...prev, [item.key]: raw }));
+                    setForm(f => ({ ...f, [item.key]: raw === '' ? 0 : Math.max(0, parseInt(raw, 10)) }));
+                  }}
+                  onBlur={() => setRawValues(prev => { const n = { ...prev }; delete n[item.key]; return n; })}
+                  className="w-16 text-center font-bold text-xl text-gray-900 border border-gray-300 rounded-xl py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
                 <button onClick={() => setForm({ ...form, [item.key]: form[item.key] + 1 })}
                   className={`w-11 h-11 ${item.color} rounded-full text-white font-bold text-lg active:scale-90 transition-all duration-150 select-none`}>＋</button>
               </div>
