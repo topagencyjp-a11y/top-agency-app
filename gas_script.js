@@ -85,6 +85,8 @@ function doPost(e) {
     result = saveMonthlyPlansBatch(data.plans);
   } else if (action === 'syncToReportSheet') {
     result = syncToReportSheet(data);
+  } else if (action === 'createAndSyncReportSheet') {
+    result = createAndSyncReportSheet(data);
   } else {
     result = { error: 'unknown action' };
   }
@@ -1003,6 +1005,65 @@ function syncSummarySheet(targetSS, members, reports, month) {
     }
     sheet.appendRow(rowData);
   });
+}
+
+function createAndSyncReportSheet(data) {
+  const month       = data.month;
+  const exportTypes = data.exportTypes || ['daily', 'summary'];
+  const folderId    = data.folderId || '';
+
+  if (!month) return { success: false, error: 'month は必須です' };
+
+  const [y, mo] = month.split('-').map(Number);
+  const title   = 'TOP Agency ' + y + '年' + mo + '月_営業データ';
+
+  let ss;
+  try {
+    ss = SpreadsheetApp.create(title);
+  } catch(e) {
+    return { success: false, error: 'スプレッドシートの作成に失敗しました: ' + e.message };
+  }
+
+  // 指定フォルダがあれば移動
+  if (folderId) {
+    try {
+      const file   = DriveApp.getFileById(ss.getId());
+      const folder = DriveApp.getFolderById(folderId);
+      folder.addFile(file);
+      DriveApp.getRootFolder().removeFile(file);
+    } catch(e) {
+      Logger.log('folder move error: ' + e);
+    }
+  }
+
+  const daysInMonth = new Date(y, mo, 0).getDate();
+  const reports     = getReports({ month }).reports;
+  const members     = _viewMembers();
+
+  const defaultSheet = ss.getSheetByName('シート1') || ss.getSheetByName('Sheet1');
+
+  if (exportTypes.includes('daily')) {
+    members.forEach(member => {
+      try { syncMemberDailySheet(ss, member, reports, month, daysInMonth); }
+      catch(e) { Logger.log('member tab error: ' + member.name + ' ' + e); }
+    });
+  }
+
+  if (exportTypes.includes('summary')) {
+    try { syncSummarySheet(ss, members, reports, month); }
+    catch(e) { Logger.log('summary error: ' + e); }
+  }
+
+  if (defaultSheet && ss.getSheets().length > 1) {
+    try { ss.deleteSheet(defaultSheet); } catch(e) {}
+  }
+
+  return {
+    success: true,
+    spreadsheetId:  ss.getId(),
+    spreadsheetUrl: ss.getUrl(),
+    title,
+  };
 }
 
 // ── スプレッドシート整形（手動で1回実行） ────────────────

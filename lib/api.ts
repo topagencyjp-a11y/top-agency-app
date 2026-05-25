@@ -237,6 +237,17 @@ export async function syncToReportSheet(params: {
   } catch { return { success: false, error: '通信エラー' }; }
 }
 
+export async function createAndSyncReportSheet(params: {
+  month: string;
+  exportTypes: string[];
+  folderId?: string;
+}): Promise<{ success: boolean; spreadsheetId?: string; spreadsheetUrl?: string; title?: string; error?: string }> {
+  try {
+    const res = await gasPost({ action: 'createAndSyncReportSheet', ...params });
+    return await res.json();
+  } catch { return { success: false, error: '通信エラー' }; }
+}
+
 // ---- Utilities ---------------------------------------------
 
 export function getAvailableMonths(reports: Record<string, unknown>[]): string[] {
