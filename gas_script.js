@@ -83,6 +83,8 @@ function doPost(e) {
     result = saveMonthlyPlan(data);
   } else if (action === 'saveMonthlyPlans') {
     result = saveMonthlyPlansBatch(data.plans);
+  } else if (action === 'syncToReportSheet') {
+    result = syncToReportSheet(data);
   } else {
     result = { error: 'unknown action' };
   }
@@ -852,6 +854,155 @@ function updateIspView(month) {
 
   sheet.setFrozenRows(1);
   sheet.setFrozenColumns(1);
+}
+
+// ── 外部スプレッドシートへのエクスポート ──────────────────
+
+const DAY_NAMES_JP = ['日', '月', '火', '水', '木', '金', '土'];
+
+function syncToReportSheet(data) {
+  const spreadsheetId = data.spreadsheetId;
+  const month         = data.month;
+  const exportTypes   = data.exportTypes || ['daily', 'summary'];
+
+  if (!spreadsheetId || !month) return { success: false, error: 'spreadsheetId と month は必須です' };
+
+  let targetSS;
+  try {
+    targetSS = SpreadsheetApp.openById(spreadsheetId);
+  } catch(e) {
+    return { success: false, error: 'スプレッドシートを開けませんでした。編集権限を確認してください。' };
+  }
+
+  const [y, mo] = month.split('-').map(Number);
+  const daysInMonth = new Date(y, mo, 0).getDate();
+  const reports = getReports({ month }).reports;
+  const members = _viewMembers();
+
+  if (exportTypes.includes('daily')) {
+    members.forEach(member => {
+      try { syncMemberDailySheet(targetSS, member, reports, month, daysInMonth); }
+      catch(e) { Logger.log('member tab error: ' + member.name + ' ' + e); }
+    });
+  }
+
+  if (exportTypes.includes('summary')) {
+    try { syncSummarySheet(targetSS, members, reports, month); }
+    catch(e) { Logger.log('summary error: ' + e); }
+  }
+
+  return { success: true };
+}
+
+function syncMemberDailySheet(targetSS, member, reports, month, daysInMonth) {
+  let sheet = targetSS.getSheetByName(member.name);
+  if (!sheet) sheet = targetSS.insertSheet(member.name);
+
+  sheet.clear();
+
+  // Row 1: メンバー名
+  sheet.getRange(1, 1).setValue(member.name).setFontWeight('bold').setFontSize(12);
+
+  // Row 2: カテゴリヘッダー（既存・メニュー・稼働地）
+  const catDefs = [
+    { col: 3, label: '既存',    span: 3, bg: '#c8e6c9' },
+    { col: 6, label: 'メニュー', span: 5, bg: '#fff9c4' },
+    { col: 11, label: '稼働地',  span: 2, bg: '#b3e5fc' },
+  ];
+  catDefs.forEach(c => {
+    const r = sheet.getRange(2, c.col, 1, c.span);
+    r.merge();
+    r.setValue(c.label).setBackground(c.bg)
+      .setHorizontalAlignment('center').setFontWeight('bold');
+  });
+
+  // Row 3: 列ヘッダー
+  const colHeaders = ['日','曜','計画件数','獲得件数','出勤状態','訪問','対面','主権対面','商談','獲得','稼働地域①','稼働地域②'];
+  const headerRange = sheet.getRange(3, 1, 1, colHeaders.length);
+  headerRange.setValues([colHeaders]).setFontWeight('bold').setHorizontalAlignment('center');
+  sheet.getRange(3, 3, 1, 3).setBackground('#e8f5e9');
+  sheet.getRange(3, 6, 1, 5).setBackground('#fffde7');
+  sheet.getRange(3, 11, 1, 2).setBackground('#e1f5fe');
+
+  // Rows 4+: 日次データ
+  const memberReports = reports.filter(r => String(r.name) === String(member.name));
+  const rows = [];
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = month + '-' + String(day).padStart(2, '0');
+    const report  = memberReports.find(r => String(r.date).slice(0, 10) === dateStr);
+    const dow     = new Date(dateStr + 'T00:00:00').getDay();
+    if (report && (Number(report.visits) > 0 || Number(report.acquired) > 0)) {
+      rows.push([
+        day, DAY_NAMES_JP[dow], '',
+        Number(report.acquired) || 0, '稼働',
+        Number(report.visits)      || 0,
+        Number(report.netMeet)     || 0,
+        Number(report.mainMeet)    || 0,
+        Number(report.negotiation) || 0,
+        Number(report.acquired)    || 0,
+        report.area1 || '', report.area2 || '',
+      ]);
+    } else {
+      rows.push([day, DAY_NAMES_JP[dow], '', 0, '', 0, 0, 0, 0, 0, '', '']);
+    }
+  }
+  sheet.getRange(4, 1, rows.length, colHeaders.length).setValues(rows);
+
+  // 土日に色付け
+  for (let i = 0; i < rows.length; i++) {
+    const dow = new Date(month + '-' + String(i + 1).padStart(2, '0') + 'T00:00:00').getDay();
+    let bg = i % 2 === 0 ? '#ffffff' : '#f9fafb';
+    if (dow === 0) bg = '#fce4ec';
+    else if (dow === 6) bg = '#e3f2fd';
+    sheet.getRange(i + 4, 1, 1, 2).setBackground(bg);
+  }
+
+  // 列幅
+  sheet.setColumnWidth(1, 32); sheet.setColumnWidth(2, 32);
+  sheet.setColumnWidth(3, 68); sheet.setColumnWidth(4, 68); sheet.setColumnWidth(5, 68);
+  for (let c = 6; c <= 10; c++) sheet.setColumnWidth(c, 54);
+  sheet.setColumnWidth(11, 100); sheet.setColumnWidth(12, 100);
+  sheet.setFrozenRows(3);
+}
+
+function syncSummarySheet(targetSS, members, reports, month) {
+  const [y, mo] = month.split('-').map(Number);
+  const sheetName = y + '年' + mo + '月_サマリー';
+  let sheet = targetSS.getSheetByName(sheetName);
+  if (!sheet) sheet = targetSS.insertSheet(sheetName);
+
+  // ヘッダーがなければ追加
+  if (sheet.getLastRow() === 0) {
+    const h = ['担当者','訪問','対面','主権対面','商談','獲得','獲得件数','稼働日数','訪問/日','獲得率(%)'];
+    sheet.getRange(1, 1, 1, h.length).setValues([h])
+      .setBackground('#1e293b').setFontColor('#ffffff')
+      .setFontWeight('bold').setHorizontalAlignment('center');
+    sheet.setFrozenRows(1);
+  }
+
+  // 各メンバーの行を upsert
+  members.forEach(m => {
+    const mReps = reports.filter(r => String(r.name) === String(m.name));
+    const v   = mReps.reduce((s, r) => s + (Number(r.visits)      || 0), 0);
+    const nm  = mReps.reduce((s, r) => s + (Number(r.netMeet)     || 0), 0);
+    const mm  = mReps.reduce((s, r) => s + (Number(r.mainMeet)    || 0), 0);
+    const neg = mReps.reduce((s, r) => s + (Number(r.negotiation) || 0), 0);
+    const acq = mReps.reduce((s, r) => s + (Number(r.acquired)    || 0), 0);
+    const days = mReps.filter(r => Number(r.visits) > 0 || Number(r.acquired) > 0).length;
+    const visitPerDay = days > 0 ? Math.round(v / days * 10) / 10 : 0;
+    const getRate     = v > 0    ? Math.round(acq / v * 1000) / 10 : 0;
+    const rowData = [m.name, v, nm, mm, neg, acq, acq, days, visitPerDay, getRate];
+
+    if (sheet.getLastRow() <= 1) { sheet.appendRow(rowData); return; }
+    const allRows = sheet.getDataRange().getValues();
+    for (let i = 1; i < allRows.length; i++) {
+      if (String(allRows[i][0]) === m.name) {
+        sheet.getRange(i + 1, 1, 1, rowData.length).setValues([rowData]);
+        return;
+      }
+    }
+    sheet.appendRow(rowData);
+  });
 }
 
 // ── スプレッドシート整形（手動で1回実行） ────────────────

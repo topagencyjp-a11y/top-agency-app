@@ -224,6 +224,19 @@ export async function updatePasswordInGAS(
   } catch { return { success: false, error: '通信エラー' }; }
 }
 
+// ---- Export ------------------------------------------------
+
+export async function syncToReportSheet(params: {
+  month: string;
+  spreadsheetId: string;
+  exportTypes: string[];
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await gasPost({ action: 'syncToReportSheet', ...params });
+    return await res.json();
+  } catch { return { success: false, error: '通信エラー' }; }
+}
+
 // ---- Utilities ---------------------------------------------
 
 export function getAvailableMonths(reports: Record<string, unknown>[]): string[] {

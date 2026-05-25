@@ -14,6 +14,7 @@ const NAV = [
 // 将来ページが増えたらここに追加する
 const MORE_PAGES = [
   { href: '/dashboard/settings', icon: '⚙️', label: '設定' },
+  { href: '/dashboard/export',   icon: '📤', label: 'エクスポート' },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
