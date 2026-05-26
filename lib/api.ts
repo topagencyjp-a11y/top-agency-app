@@ -8,7 +8,7 @@ import {
 } from './supabase-db';
 import { isSupabaseConfigured } from './supabase';
 
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbwYGlW-oq8FIAdsHhin4pqUZICN_Ju39mhwkyohDBi3LIFZUZUklNaVMxrluRC05oOCvw/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbz0KREckErCBIMvD-5yURsUh3CKVmGI5O3H2gkPtYB94QXpXn634o6y3lkTFBqqXPPBNw/exec';
 
 function toLocalDateStr(val: string): string {
   if (!val) return '';
