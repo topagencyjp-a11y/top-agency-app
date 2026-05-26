@@ -232,7 +232,11 @@ export async function syncToReportSheet(params: {
   exportTypes: string[];
 }): Promise<{ success: boolean; error?: string }> {
   try {
-    const res = await gasPost({ action: 'syncToReportSheet', ...params });
+    const res = await fetch('/api/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'syncToReportSheet', ...params }),
+    });
     return await res.json();
   } catch { return { success: false, error: '通信エラー' }; }
 }
